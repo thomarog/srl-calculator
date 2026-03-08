@@ -1,0 +1,9 @@
+streamlit
+streamlit-agraph
+pandas
+numpy
+networkx
+plotly
+pydantic
+openpyxl
+pytest
