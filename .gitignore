@@ -4,3 +4,4 @@ __pycache__/
 .pytest_cache/
 .streamlit/
 reference-legacy/old-srl-app/SRL/.git
+reference-legacy/
