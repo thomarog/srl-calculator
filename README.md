@@ -64,6 +64,7 @@ App behavior in this milestone:
   - interface IRL matrix (self diagonal = 9, missing = 0)
   - network graph of components/interfaces
   - auto-fit layout for connected and disconnected graphs (including orphans)
+  - drag-and-drop node positioning directly in graph
 - runs the existing SRL engine when you click `Recalculate SRL`
 - shows:
   - Composite SRL
@@ -82,7 +83,7 @@ App behavior in this milestone:
   - components
   - interfaces
   - evidence
-  - visualization metadata (`visualization.node_positions`)
+  - visualization metadata (`visualization.node_positions`) used for saved layout
 - shows an "Interface consistency / completeness" status above results
 - shows a top "Current Project Summary" with:
   - project name
@@ -105,6 +106,16 @@ App behavior in this milestone:
   - yellow = orphan/incomplete warning
   - red = very low readiness (TRL <= 2 or IRL <= 2)
   - gray dashed = not planned (IRL 0)
+- layout behavior:
+  - drag a node in graph to update/save its position
+  - if saved node positions exist, graph uses them
+  - otherwise graph uses automatic layout
+  - "Reset Layout" clears saved positions and returns to automatic layout
+
+Graph component:
+- Uses a local Streamlit component based on `streamlit-agraph` (vis-network backend).
+- Node drag events are captured and persisted to `visualization.node_positions`.
+- Limitation: layout updates are event-driven on drag end; component editing still happens in the existing editors.
 - IRL guidance assistant:
   - provides a checklist aligned to IRL 0..9 interpretation
   - suggests an IRL with explanation and next-step hint
@@ -139,7 +150,6 @@ python -m pytest -q tests -p no:cacheprovider
 
 ## Not implemented yet
 
-- drag-and-drop node position editing
 - advanced project save/write workflows and schema migrations
 - evidence/notes workflow and richer reporting exports
 - richer CLI options and export formats

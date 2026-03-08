@@ -8,6 +8,12 @@ from datetime import date
 
 import streamlit as st
 
+from custom_components.draggable_agraph import (
+    Config as AConfig,
+    Edge as AEdge,
+    Node as ANode,
+    agraph_draggable,
+)
 from core.engine import calculate_srl
 from core.io import load_project_data, load_project_data_from_json_text
 from core.models import Component, Interface, ProjectData
@@ -498,6 +504,107 @@ def _normalize_tuple_positions(
     return normalized
 
 
+def _extract_saved_positions(
+    node_positions: dict[str, dict[str, float]] | None,
+    component_ids: set[str],
+) -> dict[str, tuple[float, float]]:
+    if not node_positions:
+        return {}
+    extracted: dict[str, tuple[float, float]] = {}
+    for component_id in component_ids:
+        pos = node_positions.get(component_id)
+        if not isinstance(pos, dict):
+            continue
+        x = pos.get("x")
+        y = pos.get("y")
+        if isinstance(x, (int, float)) and isinstance(y, (int, float)):
+            extracted[component_id] = (float(x), float(y))
+    return extracted
+
+
+def _upsert_node_position(component_id: str, x: float, y: float) -> None:
+    visualization = st.session_state.get("visualization_metadata", {})
+    if not isinstance(visualization, dict):
+        visualization = {}
+    node_positions = visualization.get("node_positions", {})
+    if not isinstance(node_positions, dict):
+        node_positions = {}
+    node_positions[component_id] = {"x": float(x), "y": float(y)}
+    visualization["node_positions"] = node_positions
+    st.session_state.visualization_metadata = visualization
+
+
+def _reset_node_positions() -> None:
+    visualization = st.session_state.get("visualization_metadata", {})
+    if not isinstance(visualization, dict):
+        visualization = {}
+    visualization["node_positions"] = {}
+    st.session_state.visualization_metadata = visualization
+    st.session_state.last_drag_signature = None
+
+
+def _apply_pending_drag_event(component_ids: set[str]) -> bool:
+    pending = st.session_state.get("architecture_drag_graph")
+    if not isinstance(pending, dict) or pending.get("type") != "dragEnd":
+        return False
+
+    positions = pending.get("positions")
+    if not isinstance(positions, dict):
+        return False
+
+    signature = json.dumps(positions, sort_keys=True)
+    if signature == st.session_state.get("last_drag_signature"):
+        return False
+
+    updated_any = False
+    for component_id, pos in positions.items():
+        if component_id not in component_ids or not isinstance(pos, dict):
+            continue
+        x = pos.get("x")
+        y = pos.get("y")
+        if isinstance(x, (int, float)) and isinstance(y, (int, float)):
+            _upsert_node_position(component_id, float(x), float(y))
+            updated_any = True
+
+    st.session_state.last_drag_signature = signature
+    return updated_any
+
+
+def _compute_graph_positions(
+    components: list[Component],
+    interfaces: list[Interface],
+    node_positions: dict[str, dict[str, float]] | None = None,
+) -> tuple[dict[str, tuple[float, float]], bool]:
+    component_ids = {component.id for component in components}
+    node_count = len(components)
+
+    auto_positions = _auto_layout_positions(
+        [component.id for component in components], interfaces
+    )
+    saved_positions = _extract_saved_positions(node_positions, component_ids)
+
+    # Manual mode: if any saved positions exist, use them directly (no normalization)
+    # to avoid re-scaling and node jumps after drag.
+    if saved_positions:
+        manual_positions = dict(saved_positions)
+        for component in components:
+            if component.id not in manual_positions:
+                manual_positions[component.id] = auto_positions.get(component.id, (0.0, 0.0))
+        return manual_positions, True
+
+    if node_count <= 3:
+        target_w, target_h = 6.0, 2.2
+    elif node_count <= 15:
+        target_w, target_h = 10.0, 5.5
+    else:
+        target_w, target_h = 12.0, 7.0
+
+    auto_bounded = _normalize_tuple_positions(
+        auto_positions, target_width=target_w, target_height=target_h
+    )
+    return auto_bounded, False
+
+
 def _build_graphviz_dot(
     components: list[Component],
     interfaces: list[Interface],
@@ -508,26 +615,22 @@ def _build_graphviz_dot(
     orphan_ids = {component_id for component_id, linked in neighbors.items() if not linked}
     node_count = len(components)
 
-    use_positions = True
-    bounded_positions: dict[str, tuple[float, float]] = {}
-    if node_positions is not None:
-        bounded_positions = _normalize_node_positions(node_positions, component_ids)
+    auto_positions = _auto_layout_positions([component.id for component in components], interfaces)
+    saved_positions = _extract_saved_positions(node_positions, component_ids)
+    merged_positions = dict(auto_positions)
+    merged_positions.update(saved_positions)
 
-    if not bounded_positions:
-        auto_positions = _auto_layout_positions(
-            [component.id for component in components], interfaces
-        )
-        if node_count <= 3:
-            target_w, target_h = 6.0, 2.2
-        elif node_count <= 15:
-            target_w, target_h = 10.0, 5.5
-        else:
-            target_w, target_h = 12.0, 7.0
-        bounded_positions = _normalize_tuple_positions(
-            auto_positions, target_width=target_w, target_height=target_h
-        )
-    if not bounded_positions:
-        use_positions = False
+    if node_count <= 3:
+        target_w, target_h = 6.0, 2.2
+    elif node_count <= 15:
+        target_w, target_h = 10.0, 5.5
+    else:
+        target_w, target_h = 12.0, 7.0
+
+    bounded_positions = _normalize_tuple_positions(
+        merged_positions, target_width=target_w, target_height=target_h
+    )
+    use_positions = bool(bounded_positions)
 
     if node_count <= 3:
         graph_size = "8,2.4"
@@ -614,6 +717,9 @@ def _build_graphviz_dot(
 def _render_architecture_view(
     components: list[Component], interfaces: list[Interface]
 ) -> None:
+    component_ids = {component.id for component in components}
+    _apply_pending_drag_event(component_ids)
+
     st.header("Architecture View")
     st.caption("Read-only visualization of the current architecture in session state.")
 
@@ -627,12 +733,152 @@ def _render_architecture_view(
     st.subheader("Network View")
     visualization_metadata = st.session_state.get("visualization_metadata", {})
     node_positions = visualization_metadata.get("node_positions", {})
-    dot = _build_graphviz_dot(components, interfaces, node_positions=node_positions)
-    st.graphviz_chart(dot, use_container_width=True)
+    graph_positions, manual_layout_mode = _compute_graph_positions(
+        components, interfaces, node_positions
+    )
+    neighbors = _interface_neighbors(interfaces, component_ids)
+    orphan_ids = {component_id for component_id, linked in neighbors.items() if not linked}
+
+    nodes: list[ANode] = []
+    for component in components:
+        x, y = graph_positions.get(component.id, (0.0, 0.0))
+        if manual_layout_mode:
+            render_x = x
+            render_y = y
+        else:
+            render_x = x * 100
+            render_y = y * 100
+        if component.id in orphan_ids:
+            node_color = {
+                "background": "#a16207",
+                "border": "#fbbf24",
+                "highlight": {"background": "#b45309", "border": "#fde68a"},
+                "hover": {"background": "#b45309", "border": "#fde68a"},
+            }
+        elif component.trl <= 2:
+            node_color = {
+                "background": "#991b1b",
+                "border": "#ef4444",
+                "highlight": {"background": "#b91c1c", "border": "#f87171"},
+                "hover": {"background": "#b91c1c", "border": "#f87171"},
+            }
+        else:
+            node_color = {
+                "background": "#166534",
+                "border": "#22c55e",
+                "highlight": {"background": "#15803d", "border": "#4ade80"},
+                "hover": {"background": "#15803d", "border": "#4ade80"},
+            }
+        nodes.append(
+            ANode(
+                id=component.id,
+                label=f"{component.id}\n{component.name}\nTRL={component.trl}",
+                shape="box",
+                color=node_color,
+                x=render_x,
+                y=render_y,
+                physics=False,
+                fixed=False,
+                borderWidth=2,
+                borderWidthSelected=3,
+                font={"size": 14, "color": "#f8fafc", "face": "Inter"},
+            )
+        )
+
+    seen_pairs: set[tuple[str, str]] = set()
+    edges: list[AEdge] = []
+    for interface in interfaces:
+        a, b = _pair_key(interface.component_a_id, interface.component_b_id)
+        if a not in component_ids or b not in component_ids:
+            continue
+        if (a, b) in seen_pairs:
+            continue
+        seen_pairs.add((a, b))
+        irl = int(interface.irl)
+        planned = bool(interface.planned)
+        if not planned or irl == 0:
+            color = "#9ca3af"
+            dashes = True
+        elif irl <= 2:
+            color = "#ef4444"
+            dashes = False
+        else:
+            color = "#16a34a"
+            dashes = False
+        edges.append(
+            AEdge(
+                source=a,
+                target=b,
+                label=f"IRL={irl}",
+                color=color,
+                dashes=dashes,
+                width=2,
+                font={
+                    "color": "#f8fafc",
+                    "size": 13,
+                    "strokeWidth": 3,
+                    "strokeColor": "#111827",
+                    "background": "rgba(15, 23, 42, 0.75)",
+                },
+            )
+        )
+
+    graph_config = AConfig(
+        width=1100,
+        height=520,
+        directed=False,
+        physics=False,
+        hierarchical=False,
+        fit=True,
+        stabilization=False,
+        layout={"improvedLayout": False},
+        interaction={
+            "dragNodes": True,
+            "dragView": True,
+            "zoomView": True,
+            "selectConnectedEdges": False,
+        },
+    )
+    graph_container = st.container()
+    with graph_container:
+        _ = agraph_draggable(
+            nodes=nodes,
+            edges=edges,
+            config=graph_config,
+            key="architecture_drag_graph",
+        )
     st.caption(
         "Color key: green=normal/connected, yellow=orphan/incomplete, "
         "red=very low readiness (TRL<=2 or IRL<=2), gray dashed=not planned (IRL 0)."
     )
+    if manual_layout_mode:
+        st.caption("Layout mode: manual (saved node positions; auto-layout disabled).")
+    else:
+        st.caption("Layout mode: automatic (no saved node positions yet).")
+
+    st.subheader("Layout Editor")
+    st.caption(
+        "Drag nodes directly in the network view to position them. Layout is saved under "
+        "`visualization.node_positions`."
+    )
+    if st.button("Reset Layout", type="secondary"):
+        _reset_node_positions()
+        st.session_state.action_notice = "Layout reset to automatic positioning."
+        st.rerun()
+
+    saved_positions = _extract_saved_positions(
+        st.session_state.get("visualization_metadata", {}).get("node_positions", {}),
+        {component.id for component in components},
+    )
+    saved_rows = [
+        {"Component": component_id, "x": round(pos[0], 2), "y": round(pos[1], 2)}
+        for component_id, pos in sorted(saved_positions.items())
+    ]
+    st.caption("Saved manual positions")
+    if saved_rows:
+        st.dataframe(saved_rows, use_container_width=True, hide_index=True)
+    else:
+        st.caption("No manual positions saved. Auto-layout is active.")
 
 
 def _suggest_irl_from_answers(answers: dict[str, bool]) -> tuple[int, str, str]:
@@ -740,6 +986,7 @@ def _set_project_state(project: ProjectData, source_label: str) -> None:
     st.session_state.selected_interface_label = "(new interface)"
     st.session_state.source_label = source_label
     st.session_state.last_result = None
+    st.session_state.last_drag_signature = None
     st.session_state.project_loaded = True
 
 
