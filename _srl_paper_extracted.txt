@@ -1,0 +1,685 @@
+
+
+===== PAGE 1 =====
+ Procedia Computer Science   44  ( 2015 )  486 – 496 
+1877-0509 © 2015 Published by Elsevier B.V . This is an open access article under the CC BY-NC-ND license 
+(http://creativecommons.org/licenses/by-nc-nd/4.0/).
+Peer
+-review under responsibility of the Stevens Institute of Technology.
+doi: 10.1016/j.procs.2015.03.031 
+ScienceDirect
+Available online at www.sciencedirect.com
+2015 Conference on Systems Engineering Research 
+System Readiness Assessment (SRA) 
+An Illustrative Example 
+Marc F. Austin*, Donald M. York, PhD** 
+*National Security Agency, 9800 Savage Road, Fort Meade, MD 20755-6000, USA 
+**TASC Inc., 2701 Technology Drive, Annapolis Junction, MD 20701-1001, USA 
+Abstract 
+This paper describes in detail and provides an illustrative example of a Systems Readiness Assessment (SRA) Engineering Process.  
+Im
+plementation of the SRA  process can help to improve performance management for systems and aid decision makers in 
+id
+entifying programmatic and technical risk areas. The  criteria and metrics used in performi n g an assessment are described and 
+sample calculations are provided.  A set of guidelines is  also given for effective implementation and use of the SRA process. The 
+in
+tended users include Program Managers, Lead Systems Engineers (LSEs), Systems Engineers, Independent Review Teams 
+(IRTs), and developers. The goal is to provide the reader with a fundamental understanding of how to conduct an SRA, as well as 
+ass
+ist the experienced user in maximizing the benefits derived from performing SRAs. 
+ 
+© 2015 The Authors. Published by Elsevier B.V. 
+Peer-review under responsibility of the scientific committee of Stevens Institute of Technology. 
+Keywords: system; readiness; assessment; technology 
+1. Introduction 
+As systems become more and more complex, it is critical to  develop a more comprehensive understanding of the 
+development status, or “system readin ess,” to aid more informed system -level technical and managerial decisions 
+th
+roughout the life cycle. To develop potential system-level metrics, a greater emphasis must be put on the integration 
+bet
+ween and among individual components. During large-scale developments, it is also critical to measure the system 
+ 
+ 
+* Marc F. Austin Tel.: +1-410-336-2460 E-mail address: *mmfaustin@gmail.com 
+**Donald M. York Tel: +1-240-456-2020 E-mail address: *donald.york@tasc.com 
+ 
+© 2015 Published by Elsevier B.V . This is an open access article under the CC BY-NC-ND license 
+(http://creativecommons.org/licenses/by-nc-nd/4.0/).
+Peer
+-review under responsibility of the Stevens Institute of Technology.
+
+===== PAGE 2 =====
+487 Marc F . Austin and Donald M. York  /  Procedia Computer Science   44  ( 2015 )  486 – 496 
+readiness at multiple points along the life cycle to avoid pitfalls that can occur when readiness is only assessed once 
+or twice.  The SRA process provides visibility over the course of the development life cycle into the entire system and 
+the system’s interfaces to external entities. 
+The SRA process  gives decision-makers awareness as to a system’s holi stic state of maturity and quantifies the 
+level of integration a specific component has attained with other components during system development. The 
+assessment is a critical part of achieving the goals of improved system performance management and of reduced 
+program and technical risk. The SRA enables more effectiv e system development management and integration that 
+can ultimately lead to shortened delivery timelines. Both recent academic efforts and internal expertise have been 
+leveraged to develop this SRA process. Much of the system-level readiness work has been adapted and enhanced from 
+th
+e research conducted at Stevens Institute of Technology.  The SRA process described in this paper is being piloted 
+on a number of NSA programs. 
+Unlike the Technology Readiness Assessment (TRA), th e SRA process provides a “whole system” perspective, 
+enabling traceability throughout the entire system.  Whil e the Technology Readiness Assessment (TRA) is a 
+Department of Defense (DoD) directive and will continue to be performed across the DoD  [1], the SRA process is a 
+sign
+ificant enhancement and provides a number of additional benefits not provided by the current TRA process.  The 
+SRA:  
+x Measures the readiness of all system components (consider all elements equally critical).  
+x Focuses on the readiness of integration between compone nts internal to the system and requires readiness 
+understanding of other external dependencies. 
+x Is performed at multiple times over the course of the system life cycle and not just at major milestone decisions.  
+SRAs should be performed early in the program to enable th e Program Manager to understand and scope the system 
+being built.  The initial SRA is best performed at the be ginning of the system development life cycle but can be 
+performed at any time during the life cycle.  By furnishing a comprehensive systems view, the SRA enables developers 
+and systems engineers to perform design trade -offs and make sound  design decisions.  The SRA  gives the Program 
+Man
+ager an overall system perspective so that resources can be effectively applied in  the most pertinent areas.  The 
+SRA
+ process also supports portfolio management. When applied  to systems across the en terprise, the SRA approach 
+can provide a picture of both developmen tal and operational systems, with insight not only into the readiness of 
+individual system components and functions but into enterprise capability readiness as well. [4] 
+2. Metrics 
+This section describes the five metrics used throughout th e SRA process.  Two of these metrics, the Technology 
+Readiness Level (TRL) and Integration Readiness Level (IRL), are assigned.  The three remaining System Readiness 
+Metrics (Component SRL, Composite SRL and SRL) are co mputed.  Sample calculations for determining specific 
+metrics are provided in Section 4. 
+2.1. Technology Readiness Level (TRL) 
+The TRL is a systematic metric/measurement to assess the maturity of a particular technology and to allow 
+co
+nsistent comparison of maturity between different types of technologies.  TRL values range from 1 to 9.  The TRL 
+w
+as initially pioneered by J.C. Mankins [2]  at the National Aeronautics and Space Administration (NASA) Goddard 
+S
+pace Flight Center in the 1980s as a method to assess the readiness and risk of space technology.  Over time, NASA 
+co
+ntinued to commonly use readiness levels as part  of an overall risk assessment  process and as a m eans for 
+comparison of maturity between various technologies. NASA incorporated the TRL methodology into the NASA 
+Management Instruction 7100 as a systematic approach to the technology planning proc ess. The DoD, along with 
+several other organizations, later adopted this metric and tailored its definitions to meet their needs. 
+2.2. Integration Readiness Level (IRL) 
+The IRL is a metric to measure the integration maturity betw een two or more components.  Integration Readiness 
+
+===== PAGE 3 =====
+488   Marc F . Austin and Donald M. York  /  Procedia Computer Science   44  ( 2015 )  486 – 496 
+Levels, in conjunction with TRLs, form the basis for the development of the System Readiness Level (SRL). The IRL 
+values range from 0 to 9.  The original IRL scale definitions, as proposed by Sauser [3], have been modified to be 
+consistent with the foundation of the TRL scale and to reflect more closely the indigenous  development model.  See 
+T
+able 1for details. 
+IRLs represent the systematic analysis  of  the interactions between various components and provide a consistent 
+comparison of the maturity between integration points. Usi ng IRLs assists the systems engineer in identifying 
+development areas that require additional engineering. IRLs also provide a means to reduce the risk involved in 
+maturing and integrating components into a system.  Th us, IRLs supply a common meas ure of comparison for both 
+new system development and technology insertion. 
+2.3. System Readiness Metrics 
+There are three system readin ess
+  metrics that are computed  in the SRA process.  These are the Component SRL, 
+Co
+mposite SRL, and SRL. System readiness incorporates a TRL and a metric of integration maturity, the IRL. While 
+the TRL provides the metric for describing component knowled ge, the IRL is a metric that provides a description of 
+architectural knowledge or how the components are integrated.  System readiness provides a snapshot in time of the 
+readiness of the entire system.  Sections 2.3.1 – 2.3.3 describe the three system readiness metrics. 
+2.3.1. Component SRL 
+A Component SRL  is the System Readiness Level of an individu al co mponent of the system and its integration 
+links. Component SRLs are used to identify which system components are lagging or may be too far ahead in terms 
+of their readiness and thus require Program Management and/or engineering attention.  
+2.3.2. Composite SRL 
+The Composite SRL measures the SRL of the whole system or all of the components of the system integrated 
+tog
+ether. The SRA approach calculates the Composite SRL by averaging the Component SRLs and rendering the 
+value in a decimal format. As with any calculation involving an average, the user needs to be aware of the potential 
+risk of masking a Component SRL that may be significantly lagging or leading the average.  
+2.3.3. SRL 
+The SRL is obtained by converting the Composite SRL to a 1 to 9 in teger scale, with 9 being the most ready.  The 
+conversion to an integer scale facilitates reporting and in terpretation of the results, similar to the conversion of a 
+numerical score to letter grade. This process is described in Section 4.2. 
+3. The SRA Process 
+This section describes in detail the System Readiness As s essment process. The approach for conducting an SRA 
+is broken down into three core steps, as illustrated in Figure 1 and discussed in Sections 3.1 through 3.3. 
+ 
+Figure 1 System Readiness Assessment Flow 
+3.1. Understand and Bound the System 
+The team performing the SRA gathers program information, which can include capabilities statements, 
+req
+uirements documents, architecture products, co ntext diagrams, test plans, and any other  documents that support 
+u
+nderstanding the system. Product vendor documentation and relevant published reports may also provide additional 
+information to fill in any gaps to develop a complete unders tanding of the system. For this step, there is close 
+Understand and Bound the 
+System
+• Obtain Project Information
+Decompose & Map System
+• Identify Components/System 
+Change
+• Develop/Update Mapping
+Perform Iterative Evaluations
+• Evaluate Components and Interfaces
+• Determine/Update TRLs and IRLs
+• Determine/Update SRL
+Design or
+Configuration
+Change
+Re-eval/
+N
+o System
+Change
+
+===== PAGE 4 =====
+489 Marc F . Austin and Donald M. York  /  Procedia Computer Science   44  ( 2015 )  486 – 496 
+interaction of the team with the program Lead Systems Engineer (LSE) and Subject Matter Experts. 
+3.2. Develop System Mapping 
+Operational 
+Activities 
+Service Functions 
+(Level 1) 
+Service Functions 
+(Level 2) 
+System 
+Components TRL System Technologies TRL 
+A2.1.1 Activity 
+A2.1.2 Activity 
+A2.1.3 Activity 
+A2.1.4 Activity 
+A2.1.6 Activity 
+A2.2.1Activity 
+A2.2.2 Activity 
+1.Service Function 
+1.1 Service 
+Function 
+Component 1 4 
+System Technology 
+System Technology 
+System Technology 
+5 
+5 
+4 
+Component 2 4 
+System Technology 
+System Technology 
+System Technology 
+System Technology 
+6 
+4 
+7 
+5 
+A2.2.3 Activity 
+A2.2.4 Activity 
+A2.2.5 Activity 
+1.2 Service 
+Function 
+Component 3 5 
+System Technology 
+System Technology 
+System Technology 
+System Technology 
+6 
+5 
+7 
+5 
+Component 4 7 System Technology 
+System Technology 
+7 
+7 
+ 
+Figure 2 An Example Mapping of a Subset of a System with TRLs 
+Create a mapping of the system that provides a relational understanding between the different layers of architecture.  
+At the highest level, this mapping originates with operatio nal requirements and activities.  Functions which trace to 
+these operational activities are then generated.  System components w hich perform these functions are identified.  The 
+individual components are comprised of technologies.  Figure 2 shows an example system mapping diagram for four 
+of
+ the components of  a ten component system.  This is an example of tracin g  from the system’s operational 
+requirements to its individual components and technologies.  A component interface block diagram  with ten 
+c
+omponents is  generated (Figure 3).  While  the efforts to perform data gathering, assessments and calculations 
+in
+crease, the SRA method is scalable to much larger systems.  The system mapping and component interface diagrams 
+together serve as the foundation on which SRA analysis is  performed. Developing system mappings identifies the 
+linkages and traceability between system  components and allows systems to be  assessed consistently. All hardware 
+and sof
+tware components that represent the system are id entified. Technologies are mapped to specific components 
+when evaluating TRLs. Mappings are based on what is kno wn at the time and evolve and are updated as the design, 
+architecture or other information changes.  The same mapp ing process can be implemented when doing design or 
+system trade-offs, providing significant benefits and insight into analysis of alternatives.  
+3.3. Perform Iterative Evaluations 
+The third step in the process evaluates the system to determ ine its readiness. The evaluation is conducted iteratively 
+through the development cycle and can be continued throughout the system life cycle.  All component and integration 
+links must be evaluated for technology and integration readiness. Figure 3 illustrates an example of component and 
+in
+tegration links. TRLs and IRLs are determined using detailed decision  criteria and assigned accordingly.  As shown 
+in Figure 2, components may be comprised of more than one technology each with its own TRL.  The TRL of a 
+co
+mponent is determined by assigning to it the minimum TRL of the component’s system technologies.  Hence, the 
+TRL is assessed at the  technology level and the SRL is  calcu lated at the component level.  This approach for 
+determining a component’s TRL is a recommended approach, not a required one.  Assessment may be performed at a 
+different level as long as consistency is maintained.  Th e mapping shown in Figure 2 is an illustrative example of a 
+mapping and breakdown approach  which carries through the sections for illustrative purposes.  The SRL is then 
+co
+mputed by a mathematical algorithm that combines TRLs and IRLs (see Section 4.1). 
+3.4. Criteria Used in Performing Assessment 
+The SRA process incorporates readiness at three readiness le vels: Technology, Integration and System.  The scales, 
+
+===== PAGE 5 =====
+490   Marc F . Austin and Donald M. York  /  Procedia Computer Science   44  ( 2015 )  486 – 496 
+definitions, and decision criteria of each TRL are thos e developed by NASA and recommended by the Defense 
+Acquisition Guidebook.  The IRL concept was originally developed by the Stevens Institute of Technology. An 
+enhanced set of IRL decision criteria shown in Table 1 was developed which includes the evidence description used 
+to assess interface readiness during the SRA. 
+Table 1.  Decision Criteria for Assessing Integration Readiness Level (IRL)* 
+IRL Definition Depiction Evidence Description 
+0 No Integration 
+ 
+No integration between specified components has 
+been planned or intended 
+1 A high-level concept for 
+integration has been 
+identified. 
+ 
+Principal integration technologies have been identified 
+Top-level functional architecture and interface points 
+have been defined 
+High-level concept of operations and principal use cased 
+has been started 
+2 There is some level of 
+specificity of 
+requirements to 
+characterize the 
+interaction between 
+components 
+ 
+Inputs/outputs for principal integration 
+technologies/mediums are known, characterized and 
+documented 
+Principal interface requirements and/or specifications for 
+integration technologies have been defined/drafted 
+3 The detailed integration 
+design has been defined 
+to include all interface 
+details 
+ 
+Detailed interface design has been documented 
+System interface diagrams have been completed 
+Inventory of external interfaces is completed and data 
+engineering units are identified and documented 
+4 Validation of interrelated 
+functions between 
+integrating components in 
+a  laboratory environment 
+ 
+Functionality of integrating technologies 
+(modules/functions/assemblies) has been successfully 
+demonstrated in a laboratory/synthetic environment 
+Data transport method(s) and specifications have been 
+defined 
+5 Validation of interrelated 
+functions between 
+integrating components in 
+a relevant environment  
+ 
+Individual modules tested to verify that the module 
+components (functions) work together  
+External interfaces are well defined (e.g., source, data 
+formats, structure, content, method of support, etc.) 
+6 Validation of interrelated 
+functions between 
+integrating components in 
+a relevant end-to-end 
+environment  
+ 
+End-to-end Functionality of Systems Integration has 
+been validated 
+Data transmission tests completed successfully 
+Integr
+ation 
+Concept 
+Requirem
+ent1 
+Requirem
+ent1Requi
+rement1R
+equireme
+nt1Requir
+ement1Re
+Requiremen
+Design 
+A
+ B
+C
+ D
+Component 
+Component 
+Harness 
+Component 
+Lab 
+A 
+ B 
+C 
+ D 
+Component 
+Component 
+Harness 
+Component 
+Relevant 
+End-to-end 
+
+===== PAGE 6 =====
+491 Marc F . Austin and Donald M. York  /  Procedia Computer Science   44  ( 2015 )  486 – 496 
+Table 1.  Decision Criteria for Assessing Integration Readiness Level (IRL)* 
+IRL Definition Depiction Evidence Description 
+7 System prototype 
+integration demonstration 
+in an operational high-
+fidelity environment 
+ 
+Fully integrated prototype has been successfully 
+demonstrated in actual or simulated operational 
+environment 
+Each system/software interface tested individually under 
+stressed and anomalous conditions 
+Interface, Data, and Functional Verification complete 
+8 System integration 
+completed and mission 
+qualified through test and 
+demonstration in an 
+operational environment 
+ 
+Fully integrated system able to meet overall mission 
+requirements in an operational environment 
+System interfaces qualified and functioning correctly in 
+an operational environment 
+9 System Integration is 
+proven through 
+successful mission-
+proven operations 
+capabilities  
+ 
+Fully integrated system has demonstrated operational 
+effectiveness and suitability in its intended or a 
+representative operational environment 
+Integration performance has been fully characterized and 
+is consistent with user requirement 
+Disclaimer: The IRL scale does not attempt to address or account for programmatic lifecycle activities or responsibilities. 
+This scale is intended to be used to assign integration readiness levels based on the applicable definitions and supported by the 
+evidence descriptions. 
+*Developed by NSA, Version 1.1 
+4. Sample Calculations, Interpreting the Results and System Readiness Analysis 
+4.1. Sample Calculations 
+This section explains in detail and demonstrates by exam ple the calculations and matrix mathematics used in the 
+SRA process to determine the SRL [3].  Calculating the SRL is a function of the TRL and IRL matrices. The TRL 
+matrix provides a snapshot in time of the state of the system with respect to the technology readiness of its components. 
+The TRL is defined as a vector with n components where TRL i is the TRL of component i.  As was discussed in 
+Section 3.2, TRLs are mapped to specific components fo r evaluation purposes.  The IR L matrix represents the 
+integration of different components with each other from a system perspective. The integration between components 
+i and j is represented by IRL ij in the IRL matrix. The theoretical integration of a component i to itself is denoted by 
+IRLii and is assumed to be a maximum, i.e. 9, in this SRA approach. Zeroes in the matrix indicate no planned 
+integration. The formation of the TRL and IRL matrices is shown in Equations (1) and (2).  
+ 
+Figure 3 illustrates an example of TRLs and IRLs for a system architecture with 10 components.  The components 
+and interfaces shown in Figure 3 have been identified through the completion of the system mapping process described 
+in Section 3.2.  
+Demonstrated 
+Qualified 
+Proven 
+
+===== PAGE 7 =====
+492   Marc F . Austin and Donald M. York  /  Procedia Computer Science   44  ( 2015 )  486 – 496 
+In the matrices represented, the TRL levels correspond to values 1 through 9 while the IRL values range from 0 to 
+9.  Before performing the matrix math, these values are normalized by dividing by 9, the highest value. For example, 
+an IRL of 9 has a normalized value of 1 for element IRLij and has the characteristics described in Table 1 with respect 
+to th
+e ith and jth components. Similarly, an IRL of 5 has a normalized value of 
+ହ
+ଽ or 0.556.  
+ 
+Figure 3 TRLs and IRLs for a 10-Component System 
+At a minimum, each of the components of a system is connected to one other component. This integration is bi -
+directional, and it is assumed that the IRL is the same in e ach direction. Each component is integrated with other 
+components in a specific way and is used to formulate and calculate the SRL.  
+In order to calculate a value of the SRL from the TRL an d IRL  values, an SRL matrix is generated by obtaining 
+the product of the IRL and TRL matrices, as shown in Equation (3): 
+[SRL]nx1 = [IRL]nxn x [TRL]nx1  ( 3) 
+The SRL matrix consists of one element for each of  the constituent components and, from  an integration 
+perspectiv
+e, quantifies the readiness level of a specific component with respect to every other component in the system 
+w
+hile also accounting for the development state of each. 
+Mathematically, for a system with n=10 components, the SRL is as shown in Equation (4), where TRL i represent 
+th
+e individual TRLs and the IRLij are the individual IRLs between the components. SRLi represents the readiness level 
+of
+ Component i, reflecting the readiness of all of its connections/interfaces. (Recall that IRLij represents the IRL only 
+between Component i and Component j.) For the general case of a 10-component system: 
+ 
+The corresponding SRL i for each component i is then divided by mi, as shown in Equation (5) , to obtain its  
+normalized value.  The mi term is the number of integrations of component i with every other component as defined 
+by
+ the system architecture .  This includes integration of the component with itself.  Dividing by m i also allows each 
+co
+mponent to be neutrally weighted  looking at the component in isolation wi th its n earest neighbors, yielding well -
+behaved and consistent m athematical and statistical properties. 
+Component 1
+TRL = 4
+Component 7
+TRL = 4
+Component 2
+TRL = 4
+Component 8
+TRL = 3
+Component 3
+TRL = 5
+Component 5
+TRL = 5
+Component 6
+TRL = 5
+Component 4
+TRL = 7
+IRL = 1
+IRL = 1IRL = 1
+IRL = 1
+IRL = 1 IRL = 1
+IRL = 1
+IRL = 1
+Component 9
+TRL = 5
+Component 10
+TRL = 4
+IRL = 1
+IRL = 1
+
+
+===== PAGE 8 =====
+493 Marc F . Austin and Donald M. York  /  Procedia Computer Science   44  ( 2015 )  486 – 496 
+
+
+ 
+(5) 
+The Composite SRL for the system is the average of the Com ponent SRL values, as shown in Equation (6), where 
+n is the number of components: 
+ൌ
+ͳ
+ͳ
+ʹ
+ʹ
+͵
+͵
+ͳͲ
+ͳͲ
+ቁ
+݊  
+6) 
+Continuing with the example of the 10 -component system illustrated in Figure 3, where the TRLs and IRLs have 
+th
+e specified values shown, we generate Table 2.  As an illustrative example, the highlighted cell in Table 2 indicates 
+an IRL value of 1 for the integration readiness of the interface between Component 5 and Component 6.    As indicated 
+previously, a zero (0) is placed in the matrix where no integration is planned. 
+Table 2.  TRLs and IRLs for 10 Component System 
+Component IDs 1 2 3 4 5 6 7 8 9 10 
+TRLs 4 4 5 7 5 5 4 3 5 4 
+IRLs 
+1 9 0 0 0 0 0 1 0 0 0 
+2 0 9 0 0 0 0 0 1 0 0 
+3 0 0 9 0 0 0 0 1 0 0 
+4 0 0 0 9 1 1 0 0 0 0 
+5 0 0 0 1 9 1 0 0 0 0 
+6 0 0 0 1 1 9 0 0 1 1 
+7 1 0 0 0 0 0 9 0 1 0 
+8 0 1 1 0 0 0 0 9 1 0 
+9 0 0 0 0 0 1 1 1 9 0 
+10 0 0 0 0 0 1 0 0 0 9 
+Normalizing the matrix entries, the product [IRL]10x10 x [TRL]10x1 yields a resultant 10 x 1 column matrix as shown 
+in
+ Equation (7). Each Component SRL is calculated by taking the matrix entry and dividing by its total number of 
+in
+tegrations including integration with itself. F or example, Component 6 has five total integrations – Components 4, 
+5, 9, 10 and in
+tegration with itself. Thus, the  Component SRL for Component 6 is 0.815/5 = 0.163.  Table 3 shows 
+each of
+ the Component SRLs. 
+4.2. Interpreting the Results 
+The Component SRLs are important, as th ey provide an indicator of the readiness of the individual component and 
+its associated integrations. Examination of the individual Component SRL values relativ e to each other identifies those 
+components that are lagging or may too far ahead in their “readiness.” This is illustrated in the example results shown 
+in Table 3, where it can be seen that Component 8’s SRL is lagging the other system components as it has a lower 
+Component SRL value at 0.127.   The fact that the readiness of Component 8 is lagging is bro ught  to the attention of 
+the Program Manager and/or other decision makers for a detailed risk assessment and further analysis. 
+
+===== PAGE 9 =====
+494   Marc F . Austin and Donald M. York  /  Procedia Computer Science   44  ( 2015 )  486 – 496 
+ 
+Table 3.  Component SRLs for 10 Component System 
+Component ID 
+1 2 3 4 5 6 7 8 9 10 
+Component SRL 
+0.494/2 0.482/2 0.592/2 0.900/3 0.705/3 0.815/5 0.555/3 0.508/4 0.704/4 0.506/2 
+0.247 0.241 0.296 0.300 0.235 0.163 0.185 0.127 0.176 0.253 
+The Composite SRL is the average of  the Component SRLs [Equation (8)]. As with any calculation involving an 
+average, th
+e user needs to be aware of the potential risk of masking a Component SRL that is significantly lagging or 
+leading the average, reiterating  the importance of assessing and monitoring the individual Component SRLs.  
+Composite SRL = [0.247 + 0.241 + 0.296 + 0.300 +0.235 + 0.163 + 0.185 + 0.127 + 0.176 +0.253]/10 = 0.222        (8) 
+Composite SRLs are defined on a  scale from 0 to 1 with a value carried out to three decimal places. For the 
+calcu
+lations in the example above, the Composite SRL is reported as 0.222 with 10 Component SRLs of 0.247, 0.241, 
+0.296, 0.300, 0.235, 0.163, 0.185, 0.127, 0.176 and 0.253. It could potentially be difficult to understand the difference 
+between system readiness values that are very similar (e.g. 0.247 vs. 0.241 vs. 0.296).  Composite SRL values are 
+translated to whole numbers consistent with TRL and IRL sca ling for ease of interpretation. To translate the 0 to 1 
+scale to a 1 to 9 scale, the SRL Translation Model shown in Table 4 is used to map the decimal values to whole number 
+values. Because the System Readiness Assessment is de pendent on the system architecture configuration, a SRL 
+Translation Model is generated for each architecture configuration when performing the SRA as shown in Table 4.  
+ 
+To generate the SRL Translation Model for th is example architecture, a Composite SRL i is calculated for nine 
+s
+ystem architecture configurations (each with 10 components and 10 integration links) where the TRLs for all of the 
+
+
+===== PAGE 10 =====
+495 Marc F . Austin and Donald M. York  /  Procedia Computer Science   44  ( 2015 )  486 – 496 
+components and the IRLs for all of the integration links are set equal to the same value, an integer from 1 to 9. For 
+example, the Composite SRL of 0.051 is  calculated by setting the TRL of each of the 10 components equal to 1 and 
+the IRL of each of the 10 integration links equal to 1. Th e midpoints between each pair of adjacent Composite SRL i 
+are used as the boundaries for the corresponding Composite SRLi Range values, as shown in Table 4.  
+The complete SRL scale and descriptions are given in Table 5. The  SRA shown in the example at the beginning 
+of
+ this section resulted in a Composite SRL of 0.222. Using the SRL Translation Model, this translates to a System 
+Readiness Level of 3. This indicates that the immature and high-risk technologies have been identified and prototy ped. 
+Through the SRA process, areas of potential concern are identified, documented, and reported.  
+The SRL calculated in this example is a snapshot in time. It is critical to measure the system readiness at multiple 
+points along the life cycle to avoid pitfalls that can occur when readiness is only assessed once or twice. The SRA for 
+this example was conducted early in the life cycle when all component Integration Readiness Levels (IRLs) had a 
+value of “1.” As the system development progresses, the TRLs and IRLs of the components will mature and the SRA 
+is calcu
+lated for a second snapshot in time, providing the decision maker with risk assessment information.  
+SRAs can be performed on any size program and at any t ime during the system development.  The potential 
+technology and integration risks will determine the freque ncy at which SRAs are performed.  Typically, for larger 
+programs, a quarterly SRA is recommended while for small programs SRAs may be performed every month.  Once 
+the system has been defined, the system mapping completed, and the initial SRA done, subsequent or follow-on SRAs 
+can
+ be performed in a reasonably short time.   
+Table 5.  SRL Descriptions 
+Level SRL* Definition 
+9 System has achieved initial operational capability and can satisfy mission objectives 
+8 System interoperability should have been demonstrated in an operational environment 
+7 System threshold capability should have been demonstrated at operational performance level using operational 
+6 System component integrability should have been validated 
+5 System high-risk component technology development should have been complete; low-risk system components 
+4 System performance specifications and constraints should have been defined and the baseline has been allocated 
+3 System high-risk immature technologies should have been identified and prototyped 
+2 System materiel solution should have been identified 
+1 System alternative materiel solutions should have been considered 
+* Developed by NSA; derived from the DoD Integrated Defense Acquisition, Technology and Logistics Life Cycle 
+5. Guidelines for Successful Imple mentation of the SRA Process 
+In order to properly and effectively use the SRA Process,  a set of  guidelines is provided. Adherence to the 
+guidelines is important and provides the basis for successful implementation of the process and the calculation of the 
+SRL.  Below is the initial set of guidelines. Over the course of time,  as the SRA process is implemented, additional 
+g
+uidelines may be necessary. In addition, the guidelines ar e accompanied by a brief description of the rationale for 
+the guideline. 
+GUIDELINE 1 
+Use the SRL as an indicator of current system readiness rather than for predictive analysis.  
+Rationale for Guideline 1: NA SA initiated TRLs. Integration Readiness Levels (IRLs) followed. To be a System Readiness Level 
+(SRL) indicator, the metric needs to include both TRLs and IRLs (Integration). Do not use the SRL for predictive analysis. The  
+SRL should be combined with another established approach for predictive analysis. The intent of the SRL approach is not to 
+esti
+mate “how long” nor does it measure the level of effort it takes to increase system readiness. 
+
+===== PAGE 11 =====
+496   Marc F . Austin and Donald M. York  /  Procedia Computer Science   44  ( 2015 )  486 – 496 
+GUIDELINE 2  
+Only compare SRLs of the same system throughout its life cycle. Compare “your system” as it matures, not two different 
+arbitrary systems.  
+Rationale for Guideline 2: The SRL is a comprehensive snapshot in time of the readiness of the current architecture (i.e., system) 
+an
+d can be used as a valid indicator of readiness for the system at that time. The calculation of the SRL is dependent on the structure 
+of the system. Adding components and/or interfaces changes the structure of th e system.  If the structure of the system changes a 
+careful examination should be performed to ensure that inconsistencies are not introduced. 
+GUIDELINE 3 
+Systems Engineering guidelines for architectural decomposition of systems recommend decomposing a system into a subset 
+of components or entities for analysis. For SRA analysis, it is recommended to decompose the system into 9 ± 2 components.  
+Rationale for Guideline 3: The SRA approach is independent of the number of components and the number of integrations in the 
+decom
+position. However, because of the averaging of the Component SRLs to obtain the Composite SRL, exceeding the 
+recommended 9 + 2 decomposition may produce the effect where the “weakest link” or SRL of the least mature component begins 
+to be masked. This effect will be amplified as the number of components increases.  
+GUIDELINE 4 
+Let the SRL approach “work for itself.” Avoid interim or nodal comparison of TRLs and/or IRLs that result in setting an 
+expectation for what the aggregate or composite readiness/maturity should be.  
+Rationale for Guideline 4:  Do not solely use the SRL, a single number, as the basis for decision making but rather take into 
+c
+onsideration all the lower level metrics, i.e. Component SRLs, when making design and acquisition decisions. Specifically, use  
+these Component SRLs to identify components or areas of systems development that are lagging or too far ahead in their readiness 
+progression.  
+GUIDELINE 5 
+When no integration is planned between two components, set the IRL value equal to 0. If integration between components 
+is planned but not yet established, set the IRL value equal to 1.  
+Rationale for Guideline 5:  Setting the IRL values in this way completes the matrix, alerting the user to the fact that there is no 
+in
+terface between two components (IRL = 0) or that the interface is planned but not yet established (IRL = 1). 
+6. Summary 
+System Readiness Assessment (SRA) is an innovative meth odology  that provides a system level metric to help 
+reduce integration issues, one of the leading causes of system development failures.  The SRA methodology provides 
+decis
+ion-makers a snapshot  of a system’s holistic state of maturity and quantifies the level of component -to-
+component integration during system development, helping to improve system performance management.  
+I
+mplementation of the SRA methodology  aids decision makers in identifying both programmatic and technical risk 
+areas.  The SRA methodology is currently being validated through a number of program pilots.  Further validation of 
+th
+e method will be  achieved through broader application across multiple  enterprises.  Future research areas include 
+m
+athematically sound weighting techniques and leveraging th e principles of the SRA framework to model system 
+availability and for other Risk Management techniques. 
+References 
+1. Assistant Secretary of Defense for Research and Engineering (ASD(R&E)), Department of Defense Technology Readiness 
+A
+ssessment (TRA) Guidance, April 2011. 
+2. Mankins, J.C., Technology Readiness Levels, NASA, 1995. 
+3. Sauser, B., Ramirez-Marques, J., Magnaye, R., Tan, W. (2008). A Systems Approach to Expanding the Technology 
+R
+eadiness Level within Defense Acquisition, International Journal of Defense Acquisition Management, Vol. 1, 39-58. 
+4. Austin, M.F., et.al., A Systems Approach to the Transition of Emergent Technologies into Operational Systems – Herding the 
+Cats, th
+e Road to Euphoria and Planning for Success, INCOSE International Symposium, Utrecht, Netherlands, 2008. 
+ 

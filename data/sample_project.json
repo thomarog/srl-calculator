@@ -1,0 +1,28 @@
+{
+  "name": "Paper Example 10-Component System",
+  "components": [
+    {"id": "C1", "name": "Component 1", "trl": 4},
+    {"id": "C2", "name": "Component 2", "trl": 4},
+    {"id": "C3", "name": "Component 3", "trl": 5},
+    {"id": "C4", "name": "Component 4", "trl": 7},
+    {"id": "C5", "name": "Component 5", "trl": 5},
+    {"id": "C6", "name": "Component 6", "trl": 5},
+    {"id": "C7", "name": "Component 7", "trl": 4},
+    {"id": "C8", "name": "Component 8", "trl": 3},
+    {"id": "C9", "name": "Component 9", "trl": 5},
+    {"id": "C10", "name": "Component 10", "trl": 4}
+  ],
+  "interfaces": [
+    {"component_a_id": "C1", "component_b_id": "C7", "irl": 1, "planned": true},
+    {"component_a_id": "C2", "component_b_id": "C8", "irl": 1, "planned": true},
+    {"component_a_id": "C3", "component_b_id": "C8", "irl": 1, "planned": true},
+    {"component_a_id": "C4", "component_b_id": "C5", "irl": 1, "planned": true},
+    {"component_a_id": "C4", "component_b_id": "C6", "irl": 1, "planned": true},
+    {"component_a_id": "C5", "component_b_id": "C6", "irl": 1, "planned": true},
+    {"component_a_id": "C6", "component_b_id": "C9", "irl": 1, "planned": true},
+    {"component_a_id": "C6", "component_b_id": "C10", "irl": 1, "planned": true},
+    {"component_a_id": "C7", "component_b_id": "C9", "irl": 1, "planned": true},
+    {"component_a_id": "C8", "component_b_id": "C9", "irl": 1, "planned": true}
+  ]
+}
+
