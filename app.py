@@ -15,6 +15,7 @@ from custom_components.draggable_agraph import (
     agraph_draggable,
 )
 from core.engine import calculate_srl
+from core.export_naming import build_export_filename, normalize_export_filename
 from core.interface_store import pair_key, save_interface
 from core.io import load_project_data, load_project_data_from_json_text
 from core.models import Component, Interface, ProjectData
@@ -1494,6 +1495,39 @@ def main() -> None:
                     "visualization_metadata", {"node_positions": {}}
                 ),
             )
+
+            append_timestamp = st.checkbox(
+                "Append timestamp",
+                value=st.session_state.get("export_append_timestamp", False),
+                help="Adds current date/time to the filename for versioned saves.",
+            )
+            st.session_state.export_append_timestamp = append_timestamp
+
+            suggested_filename = build_export_filename(
+                project_name=export_project.name,
+                revision=export_project.revision,
+                project_date=export_project.project_date,
+                append_timestamp=append_timestamp,
+            )
+            previous_suggested = st.session_state.get("export_filename_suggested")
+            if "export_filename" not in st.session_state or st.session_state.get(
+                "export_filename", ""
+            ) in {"", previous_suggested}:
+                st.session_state.export_filename = suggested_filename
+            st.session_state.export_filename_suggested = suggested_filename
+
+            entered_filename = st.text_input(
+                "Export filename",
+                value=st.session_state.get("export_filename", suggested_filename),
+                help="Choose the filename used by the download button.",
+            )
+            st.session_state.export_filename = entered_filename
+            download_filename = normalize_export_filename(entered_filename or suggested_filename)
+
+            st.caption(
+                "Your browser controls the final save location. "
+                "Use the filename field above to choose the downloaded name."
+            )
             st.download_button(
                 "Download Current Project JSON",
                 data=_project_json_text(
@@ -1506,7 +1540,7 @@ def main() -> None:
                     export_project.evidence,
                     export_project.visualization_metadata,
                 ),
-                file_name="project_export.json",
+                file_name=download_filename,
                 mime="application/json",
             )
 
