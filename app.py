@@ -15,6 +15,7 @@ from custom_components.draggable_agraph import (
     agraph_draggable,
 )
 from core.engine import calculate_srl
+from core.interface_store import pair_key, save_interface
 from core.io import load_project_data, load_project_data_from_json_text
 from core.models import Component, Interface, ProjectData
 
@@ -144,7 +145,7 @@ def _build_components_from_rows(
 
 
 def _pair_key(component_a_id: str, component_b_id: str) -> tuple[str, str]:
-    return tuple(sorted((component_a_id, component_b_id)))
+    return pair_key(component_a_id, component_b_id)
 
 
 def _interface_label(interface: Interface) -> str:
@@ -1242,17 +1243,11 @@ def _render_interfaces_editor(valid_component_ids: list[str]) -> list[str]:
                 irl=int(irl),
                 note=note.strip() or None,
             )
-            new_interfaces: list[Interface] = []
-            replaced = False
-            for interface in interfaces:
-                pair = _pair_key(interface.component_a_id, interface.component_b_id)
-                if selected_interface is not None and pair == old_pair and not replaced:
-                    new_interfaces.append(updated_interface)
-                    replaced = True
-                else:
-                    new_interfaces.append(interface)
-            if selected_interface is None:
-                new_interfaces.append(updated_interface)
+            new_interfaces = save_interface(
+                interfaces=interfaces,
+                updated_interface=updated_interface,
+                original_pair=old_pair,
+            )
 
             st.session_state.interfaces = new_interfaces
             st.session_state.selected_interface_label = _interface_label(updated_interface)
