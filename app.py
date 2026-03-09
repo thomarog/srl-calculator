@@ -1151,7 +1151,7 @@ def _render_interfaces_editor(valid_component_ids: list[str]) -> list[str]:
         planned = st.checkbox("Planned", value=default_planned)
         irl = st.number_input("IRL", min_value=0, max_value=9, value=default_irl, step=1)
         note = st.text_area("Notes / Evidence", value=default_note)
-        save_interface = st.form_submit_button("Save Interface")
+        save_interface_clicked = st.form_submit_button("Save Interface")
 
     with st.expander("IRL Guidance Assistant (optional)", expanded=False):
         st.caption(
@@ -1217,7 +1217,7 @@ def _render_interfaces_editor(valid_component_ids: list[str]) -> list[str]:
         st.write(f"Why: {explanation}")
         st.write(next_hint)
 
-    if save_interface:
+    if save_interface_clicked:
         a, b = _pair_key(component_a, component_b)
         validation_errors: list[str] = []
         if a == b:
