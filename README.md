@@ -65,6 +65,9 @@ App behavior in this milestone:
   - network graph of components/interfaces
   - auto-fit layout for connected and disconnected graphs (including orphans)
   - drag-and-drop node positioning directly in graph
+  - **View Mode switch** for:
+    - Edit Mode (full editors/workflow)
+    - Architecture Focus Mode (large graph-first view with minimal surrounding UI)
 - runs the existing SRL engine when you click `Recalculate SRL`
 - shows:
   - Composite SRL
@@ -115,7 +118,8 @@ App behavior in this milestone:
 Graph component:
 - Uses a local Streamlit component based on `streamlit-agraph` (vis-network backend).
 - Node drag events are captured and persisted to `visualization.node_positions`.
-- Limitation: layout updates are event-driven on drag end; component editing still happens in the existing editors.
+- Limitation: Streamlit does not provide a native pop-out graph window here; focus mode is implemented as a Streamlit-native large in-page view.
+- Layout updates are event-driven on drag end; component editing still happens in the existing editors.
 - IRL guidance assistant:
   - provides a checklist aligned to IRL 0..9 interpretation
   - suggests an IRL with explanation and next-step hint

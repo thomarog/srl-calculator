@@ -700,20 +700,31 @@ def _build_graphviz_dot(
 
 
 def _render_architecture_view(
-    components: list[Component], interfaces: list[Interface]
+    components: list[Component],
+    interfaces: list[Interface],
+    focus_mode: bool = False,
+    model_status: str | None = None,
 ) -> None:
     component_ids = {component.id for component in components}
     _apply_pending_drag_event(component_ids)
 
-    st.header("Architecture View")
-    st.caption("Read-only visualization of the current architecture in session state.")
+    if focus_mode:
+        st.header("Architecture Focus Mode")
+        st.caption(
+            "Streamlit does not support a true pop-out window in this app, so focus mode "
+            "is provided as an in-page large-graph view."
+        )
+    else:
+        st.header("Architecture View")
+        st.caption("Read-only visualization of the current architecture in session state.")
 
-    st.subheader("Interface Matrix (IRL)")
-    _, matrix_rows = _build_irl_matrix_view(components, interfaces)
-    st.dataframe(matrix_rows, use_container_width=True, hide_index=True)
-    st.caption(
-        "Diagonal self-cells are fixed to 9. Non-diagonal missing interfaces are shown as 0."
-    )
+    if not focus_mode:
+        st.subheader("Interface Matrix (IRL)")
+        _, matrix_rows = _build_irl_matrix_view(components, interfaces)
+        st.dataframe(matrix_rows, use_container_width=True, hide_index=True)
+        st.caption(
+            "Diagonal self-cells are fixed to 9. Non-diagonal missing interfaces are shown as 0."
+        )
 
     st.subheader("Network View")
     visualization_metadata = st.session_state.get("visualization_metadata", {})
@@ -725,6 +736,8 @@ def _render_architecture_view(
     orphan_ids = {component_id for component_id, linked in neighbors.items() if not linked}
 
     nodes: list[ANode] = []
+    node_font_size = 16 if focus_mode else 14
+    edge_font_size = 14 if focus_mode else 13
     for component in components:
         x, y = graph_positions.get(component.id, (0.0, 0.0))
         if manual_layout_mode:
@@ -766,7 +779,7 @@ def _render_architecture_view(
                 fixed=False,
                 borderWidth=2,
                 borderWidthSelected=3,
-                font={"size": 14, "color": "#f8fafc", "face": "Inter"},
+                font={"size": node_font_size, "color": "#f8fafc", "face": "Inter"},
             )
         )
 
@@ -800,7 +813,7 @@ def _render_architecture_view(
                 width=2,
                 font={
                     "color": "#f8fafc",
-                    "size": 13,
+                    "size": edge_font_size,
                     "strokeWidth": 3,
                     "strokeColor": "#111827",
                     "background": "rgba(15, 23, 42, 0.75)",
@@ -809,8 +822,8 @@ def _render_architecture_view(
         )
 
     graph_config = AConfig(
-        width=1100,
-        height=520,
+        width=1400 if focus_mode else 1100,
+        height=760 if focus_mode else 520,
         directed=False,
         physics=False,
         hierarchical=False,
@@ -832,6 +845,12 @@ def _render_architecture_view(
             config=graph_config,
             key="architecture_drag_graph",
         )
+
+    summary_cols = st.columns(3)
+    summary_cols[0].metric("Components", str(len(components)))
+    summary_cols[1].metric("Interfaces", str(len(interfaces)))
+    summary_cols[2].metric("Model Status", model_status or "-")
+
     st.caption(
         "Color key: green=normal/connected, yellow=orphan/incomplete, "
         "red=very low readiness (TRL<=2 or IRL<=2), gray dashed=not planned (IRL 0)."
@@ -859,11 +878,25 @@ def _render_architecture_view(
         {"Component": component_id, "x": round(pos[0], 2), "y": round(pos[1], 2)}
         for component_id, pos in sorted(saved_positions.items())
     ]
-    st.caption("Saved manual positions")
-    if saved_rows:
-        st.dataframe(saved_rows, use_container_width=True, hide_index=True)
+
+    if focus_mode:
+        with st.expander("Saved manual positions", expanded=False):
+            if saved_rows:
+                st.dataframe(saved_rows, use_container_width=True, hide_index=True)
+            else:
+                st.caption("No manual positions saved. Auto-layout is active.")
+        with st.expander("Interface Matrix (IRL)", expanded=False):
+            _, matrix_rows = _build_irl_matrix_view(components, interfaces)
+            st.dataframe(matrix_rows, use_container_width=True, hide_index=True)
+            st.caption(
+                "Diagonal self-cells are fixed to 9. Non-diagonal missing interfaces are shown as 0."
+            )
     else:
-        st.caption("No manual positions saved. Auto-layout is active.")
+        st.caption("Saved manual positions")
+        if saved_rows:
+            st.dataframe(saved_rows, use_container_width=True, hide_index=True)
+        else:
+            st.caption("No manual positions saved. Auto-layout is active.")
 
 
 def _suggest_irl_from_answers(answers: dict[str, bool]) -> tuple[int, str, str]:
@@ -1389,6 +1422,15 @@ def main() -> None:
 
     summary_placeholder = st.empty()
 
+    view_mode = st.radio(
+        "View Mode",
+        options=["Edit Mode", "Architecture Focus Mode"],
+        horizontal=True,
+        index=0,
+        help="Switch between full editing workflow and large architecture-focused view.",
+    )
+    focus_mode = view_mode == "Architecture Focus Mode"
+
     st.header("Project Workflow")
     action_col_1, action_col_2, action_col_3, action_col_4 = st.columns(4)
     with action_col_1:
@@ -1425,41 +1467,78 @@ def main() -> None:
 
     st.info(st.session_state.get("source_label", "No project loaded."))
 
-    st.subheader("Project Metadata")
-    meta_col_1, meta_col_2, meta_col_3 = st.columns(3)
-    with meta_col_1:
-        st.session_state.project_name = st.text_input(
-            "Project name",
-            value=st.session_state.get("project_name", "SRL Project"),
-        )
-    with meta_col_2:
-        st.session_state.project_revision = st.text_input(
-            "Revision",
-            value=st.session_state.get("project_revision", "1"),
-        )
-    with meta_col_3:
-        st.session_state.project_date = st.text_input(
-            "Date",
-            value=st.session_state.get("project_date", date.today().isoformat()),
-        )
-    st.session_state.project_notes = st.text_area(
-        "Project notes",
-        value=st.session_state.get("project_notes", ""),
-    )
-    evidence_default_text = _evidence_items_to_text(st.session_state.get("project_evidence", []))
-    evidence_text = st.text_area(
-        "Evidence / notes entries (one line per entry)",
-        value=evidence_default_text,
-        help="Saved to project JSON under 'evidence'.",
-    )
-    st.session_state.project_evidence = _evidence_text_to_items(evidence_text)
+    if focus_mode:
+        with st.expander("Project Metadata (collapsed in focus mode)", expanded=False):
+            st.session_state.project_name = st.text_input(
+                "Project name",
+                value=st.session_state.get("project_name", "SRL Project"),
+            )
+            meta_col_1, meta_col_2 = st.columns(2)
+            with meta_col_1:
+                st.session_state.project_revision = st.text_input(
+                    "Revision",
+                    value=st.session_state.get("project_revision", "1"),
+                )
+            with meta_col_2:
+                st.session_state.project_date = st.text_input(
+                    "Date",
+                    value=st.session_state.get("project_date", date.today().isoformat()),
+                )
+            st.session_state.project_notes = st.text_area(
+                "Project notes",
+                value=st.session_state.get("project_notes", ""),
+            )
+            evidence_default_text = _evidence_items_to_text(st.session_state.get("project_evidence", []))
+            evidence_text = st.text_area(
+                "Evidence / notes entries (one line per entry)",
+                value=evidence_default_text,
+                help="Saved to project JSON under 'evidence'.",
+            )
+            st.session_state.project_evidence = _evidence_text_to_items(evidence_text)
 
-    components, component_errors = _render_components_editor()
-    valid_component_ids = [component.id for component in components]
-    interface_errors = _render_interfaces_editor(valid_component_ids)
+        with st.expander("Editors (switch to Edit Mode for full workflow)", expanded=False):
+            components, component_errors = _build_components_from_rows(
+                st.session_state.get("component_rows", [])
+            )
+            valid_component_ids = [component.id for component in components]
+            interfaces = st.session_state.get("interfaces", [])
+            interface_errors = _validate_interfaces(interfaces, set(valid_component_ids))
+            st.caption("Components and Interfaces editors are hidden in focus mode.")
+    else:
+        st.subheader("Project Metadata")
+        meta_col_1, meta_col_2, meta_col_3 = st.columns(3)
+        with meta_col_1:
+            st.session_state.project_name = st.text_input(
+                "Project name",
+                value=st.session_state.get("project_name", "SRL Project"),
+            )
+        with meta_col_2:
+            st.session_state.project_revision = st.text_input(
+                "Revision",
+                value=st.session_state.get("project_revision", "1"),
+            )
+        with meta_col_3:
+            st.session_state.project_date = st.text_input(
+                "Date",
+                value=st.session_state.get("project_date", date.today().isoformat()),
+            )
+        st.session_state.project_notes = st.text_area(
+            "Project notes",
+            value=st.session_state.get("project_notes", ""),
+        )
+        evidence_default_text = _evidence_items_to_text(st.session_state.get("project_evidence", []))
+        evidence_text = st.text_area(
+            "Evidence / notes entries (one line per entry)",
+            value=evidence_default_text,
+            help="Saved to project JSON under 'evidence'.",
+        )
+        st.session_state.project_evidence = _evidence_text_to_items(evidence_text)
+
+        components, component_errors = _render_components_editor()
+        valid_component_ids = [component.id for component in components]
+        interface_errors = _render_interfaces_editor(valid_component_ids)
 
     interfaces: list[Interface] = st.session_state.get("interfaces", [])
-    _render_architecture_view(components, interfaces)
 
     original_component_ids: set[str] = st.session_state.get("original_component_ids", set())
     baseline_neighbor_counts: dict[str, int] = st.session_state.get(
@@ -1481,6 +1560,13 @@ def main() -> None:
     )
     model_status = _project_health_status(
         consistency_status, component_errors, interface_errors
+    )
+
+    _render_architecture_view(
+        components,
+        interfaces,
+        focus_mode=focus_mode,
+        model_status=model_status,
     )
 
     with summary_placeholder.container():
