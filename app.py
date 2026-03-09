@@ -15,6 +15,8 @@ from custom_components.draggable_agraph import (
     agraph_draggable,
 )
 from core.engine import calculate_srl
+from core.export_naming import build_export_filename, normalize_export_filename
+from core.interface_store import pair_key, save_interface
 from core.io import load_project_data, load_project_data_from_json_text
 from core.models import Component, Interface, ProjectData
 
@@ -144,7 +146,7 @@ def _build_components_from_rows(
 
 
 def _pair_key(component_a_id: str, component_b_id: str) -> tuple[str, str]:
-    return tuple(sorted((component_a_id, component_b_id)))
+    return pair_key(component_a_id, component_b_id)
 
 
 def _interface_label(interface: Interface) -> str:
@@ -1150,7 +1152,7 @@ def _render_interfaces_editor(valid_component_ids: list[str]) -> list[str]:
         planned = st.checkbox("Planned", value=default_planned)
         irl = st.number_input("IRL", min_value=0, max_value=9, value=default_irl, step=1)
         note = st.text_area("Notes / Evidence", value=default_note)
-        save_interface = st.form_submit_button("Save Interface")
+        save_interface_clicked = st.form_submit_button("Save Interface")
 
     with st.expander("IRL Guidance Assistant (optional)", expanded=False):
         st.caption(
@@ -1216,7 +1218,7 @@ def _render_interfaces_editor(valid_component_ids: list[str]) -> list[str]:
         st.write(f"Why: {explanation}")
         st.write(next_hint)
 
-    if save_interface:
+    if save_interface_clicked:
         a, b = _pair_key(component_a, component_b)
         validation_errors: list[str] = []
         if a == b:
@@ -1242,17 +1244,11 @@ def _render_interfaces_editor(valid_component_ids: list[str]) -> list[str]:
                 irl=int(irl),
                 note=note.strip() or None,
             )
-            new_interfaces: list[Interface] = []
-            replaced = False
-            for interface in interfaces:
-                pair = _pair_key(interface.component_a_id, interface.component_b_id)
-                if selected_interface is not None and pair == old_pair and not replaced:
-                    new_interfaces.append(updated_interface)
-                    replaced = True
-                else:
-                    new_interfaces.append(interface)
-            if selected_interface is None:
-                new_interfaces.append(updated_interface)
+            new_interfaces = save_interface(
+                interfaces=interfaces,
+                updated_interface=updated_interface,
+                original_pair=old_pair,
+            )
 
             st.session_state.interfaces = new_interfaces
             st.session_state.selected_interface_label = _interface_label(updated_interface)
@@ -1499,6 +1495,39 @@ def main() -> None:
                     "visualization_metadata", {"node_positions": {}}
                 ),
             )
+
+            append_timestamp = st.checkbox(
+                "Append timestamp",
+                value=st.session_state.get("export_append_timestamp", False),
+                help="Adds current date/time to the filename for versioned saves.",
+            )
+            st.session_state.export_append_timestamp = append_timestamp
+
+            suggested_filename = build_export_filename(
+                project_name=export_project.name,
+                revision=export_project.revision,
+                project_date=export_project.project_date,
+                append_timestamp=append_timestamp,
+            )
+            previous_suggested = st.session_state.get("export_filename_suggested")
+            if "export_filename" not in st.session_state or st.session_state.get(
+                "export_filename", ""
+            ) in {"", previous_suggested}:
+                st.session_state.export_filename = suggested_filename
+            st.session_state.export_filename_suggested = suggested_filename
+
+            entered_filename = st.text_input(
+                "Export filename",
+                value=st.session_state.get("export_filename", suggested_filename),
+                help="Choose the filename used by the download button.",
+            )
+            st.session_state.export_filename = entered_filename
+            download_filename = normalize_export_filename(entered_filename or suggested_filename)
+
+            st.caption(
+                "Your browser controls the final save location. "
+                "Use the filename field above to choose the downloaded name."
+            )
             st.download_button(
                 "Download Current Project JSON",
                 data=_project_json_text(
@@ -1511,7 +1540,7 @@ def main() -> None:
                     export_project.evidence,
                     export_project.visualization_metadata,
                 ),
-                file_name="project_export.json",
+                file_name=download_filename,
                 mime="application/json",
             )
 
