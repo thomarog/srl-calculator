@@ -17,6 +17,12 @@ from custom_components.draggable_agraph import (
 from core.engine import calculate_srl
 from core.io import load_project_data, load_project_data_from_json_text
 from core.models import Component, Interface, ProjectData
+from core.state_sync import (
+    build_irl_matrix,
+    propagate_component_rename,
+    prune_stale_interfaces,
+    remove_component_and_related_interfaces,
+)
 
 
 DEFAULT_PROJECT = Path("data/sample_project.json")
@@ -352,28 +358,7 @@ def _component_map(components: list[Component]) -> dict[str, Component]:
 def _build_irl_matrix_view(
     components: list[Component], interfaces: list[Interface]
 ) -> tuple[list[str], list[dict[str, Any]]]:
-    component_ids = [component.id for component in components]
-    component_set = set(component_ids)
-    matrix: dict[str, dict[str, int]] = {
-        row_id: {col_id: 0 for col_id in component_ids} for row_id in component_ids
-    }
-    for component_id in component_ids:
-        matrix[component_id][component_id] = 9
-
-    for interface in interfaces:
-        a, b = _pair_key(interface.component_a_id, interface.component_b_id)
-        if a in component_set and b in component_set:
-            matrix[a][b] = int(interface.irl)
-            matrix[b][a] = int(interface.irl)
-
-    rows: list[dict[str, Any]] = []
-    for row_id in component_ids:
-        row: dict[str, Any] = {"Component": row_id}
-        for col_id in component_ids:
-            row[col_id] = matrix[row_id][col_id]
-        rows.append(row)
-
-    return component_ids, rows
+    return build_irl_matrix(components, interfaces)
 
 
 def _normalize_node_positions(
@@ -990,6 +975,55 @@ def _set_project_state(project: ProjectData, source_label: str) -> None:
     st.session_state.project_loaded = True
 
 
+def _update_component_references(old_id: str, new_id: str) -> tuple[int, int]:
+    if old_id == new_id:
+        return 0, 0
+
+    interfaces: list[Interface] = st.session_state.get("interfaces", [])
+    synchronized, updated_ref_count, duplicate_count = propagate_component_rename(
+        interfaces,
+        old_id=old_id,
+        new_id=new_id,
+    )
+    st.session_state.interfaces = synchronized
+
+    visualization = st.session_state.get("visualization_metadata", {})
+    if not isinstance(visualization, dict):
+        visualization = {}
+    node_positions = visualization.get("node_positions", {})
+    if isinstance(node_positions, dict) and old_id in node_positions:
+        node_positions[new_id] = node_positions.pop(old_id)
+        visualization["node_positions"] = node_positions
+        st.session_state.visualization_metadata = visualization
+
+    return updated_ref_count, duplicate_count
+
+
+def _remove_deleted_component_references(component_id: str) -> int:
+    interfaces: list[Interface] = st.session_state.get("interfaces", [])
+    kept, removed_count = remove_component_and_related_interfaces(interfaces, component_id)
+    st.session_state.interfaces = kept
+
+    visualization = st.session_state.get("visualization_metadata", {})
+    if not isinstance(visualization, dict):
+        visualization = {}
+    node_positions = visualization.get("node_positions", {})
+    if isinstance(node_positions, dict) and component_id in node_positions:
+        del node_positions[component_id]
+        visualization["node_positions"] = node_positions
+        st.session_state.visualization_metadata = visualization
+
+    return removed_count
+
+
+def _cleanup_stale_interface_references(component_ids: set[str]) -> int:
+    interfaces: list[Interface] = st.session_state.get("interfaces", [])
+    kept, removed_count = prune_stale_interfaces(interfaces, component_ids)
+    if removed_count:
+        st.session_state.interfaces = kept
+    return removed_count
+
+
 def _render_components_editor() -> tuple[list[Component], list[str]]:
     st.header("Components Editor")
     st.caption("Components are editable here.")
@@ -1057,6 +1091,7 @@ def _render_components_editor() -> tuple[list[Component], list[str]]:
                 save_submitted = st.form_submit_button("Save Component")
 
             if save_submitted:
+                old_id = str(selected_row.get("id", "")).strip()
                 updated_row = {
                     "id": edit_id.strip(),
                     "name": edit_name.strip(),
@@ -1067,7 +1102,21 @@ def _render_components_editor() -> tuple[list[Component], list[str]]:
                 rows_copy[selected_idx] = updated_row
                 st.session_state.component_rows = rows_copy
                 st.session_state.selected_component_id = updated_row["id"] or None
+                updated_refs, deduped_refs = _update_component_references(
+                    old_id=old_id,
+                    new_id=updated_row["id"],
+                )
                 st.session_state.last_result = None
+                if old_id and updated_row["id"] and old_id != updated_row["id"]:
+                    suffix = (
+                        f" (removed {deduped_refs} conflicting/self interfaces)."
+                        if deduped_refs
+                        else "."
+                    )
+                    st.session_state.action_notice = (
+                        f"Renamed component {old_id} to {updated_row['id']} and updated "
+                        f"{updated_refs} associated interfaces{suffix}"
+                    )
                 st.rerun()
 
             if st.button("Delete Selected Component", type="secondary"):
@@ -1075,10 +1124,13 @@ def _render_components_editor() -> tuple[list[Component], list[str]]:
                 deleted_id = rows_copy[selected_idx].get("id")
                 del rows_copy[selected_idx]
                 st.session_state.component_rows = rows_copy
+                removed_interfaces = _remove_deleted_component_references(str(deleted_id))
                 remaining_ids = [str(row.get("id", "")).strip() for row in rows_copy if str(row.get("id", "")).strip()]
                 st.session_state.selected_component_id = remaining_ids[0] if remaining_ids else None
                 st.session_state.last_result = None
-                st.session_state.action_notice = f"Deleted component: {deleted_id}"
+                st.session_state.action_notice = (
+                    f"Deleted component {deleted_id} and removed {removed_interfaces} associated interfaces."
+                )
                 st.rerun()
 
     components, component_errors = _build_components_from_rows(
@@ -1093,6 +1145,12 @@ def _render_interfaces_editor(valid_component_ids: list[str]) -> list[str]:
 
     interfaces: list[Interface] = st.session_state.get("interfaces", [])
     component_id_set = set(valid_component_ids)
+    stale_removed = _cleanup_stale_interface_references(component_id_set)
+    if stale_removed:
+        interfaces = st.session_state.get("interfaces", [])
+        st.warning(
+            f"Removed {stale_removed} stale interface(s) with missing components during refresh."
+        )
     interface_rows = [_interface_to_row(interface, component_id_set) for interface in interfaces]
 
     st.subheader("Current Interfaces")
