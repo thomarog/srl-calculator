@@ -706,26 +706,28 @@ def _render_architecture_view(
     focus_mode: bool = False,
     full_view_mode: bool = False,
     model_status: str | None = None,
+    canvas_only: bool = False,
 ) -> None:
     component_ids = {component.id for component in components}
     _apply_pending_drag_event(component_ids)
 
-    if full_view_mode:
-        st.header("Graph Full View")
-        st.caption(
-            "Near-full-screen graph mode (Streamlit-native alternative to browser full-screen pop-out)."
-        )
-    elif focus_mode:
-        st.header("Architecture Focus Mode")
-        st.caption(
-            "Streamlit does not support a true pop-out window in this app, so focus mode "
-            "is provided as an in-page large-graph view."
-        )
-    else:
-        st.header("Architecture View")
-        st.caption("Read-only visualization of the current architecture in session state.")
+    if not canvas_only:
+        if full_view_mode:
+            st.header("Graph Full View")
+            st.caption(
+                "Near-full-screen graph mode (Streamlit-native alternative to browser full-screen pop-out)."
+            )
+        elif focus_mode:
+            st.header("Architecture Focus Mode")
+            st.caption(
+                "Streamlit does not support a true pop-out window in this app, so focus mode "
+                "is provided as an in-page large-graph view."
+            )
+        else:
+            st.header("Architecture View")
+            st.caption("Read-only visualization of the current architecture in session state.")
 
-    if not focus_mode and not full_view_mode:
+    if not focus_mode and not full_view_mode and not canvas_only:
         st.subheader("Interface Matrix (IRL)")
         _, matrix_rows = _build_irl_matrix_view(components, interfaces)
         st.dataframe(matrix_rows, use_container_width=True, hide_index=True)
@@ -733,7 +735,8 @@ def _render_architecture_view(
             "Diagonal self-cells are fixed to 9. Non-diagonal missing interfaces are shown as 0."
         )
 
-    st.subheader("Network View")
+    if not canvas_only:
+        st.subheader("Network View")
     visualization_metadata = st.session_state.get("visualization_metadata", {})
     node_positions = visualization_metadata.get("node_positions", {})
     graph_positions, manual_layout_mode = _compute_graph_positions(
@@ -743,8 +746,8 @@ def _render_architecture_view(
     orphan_ids = {component_id for component_id, linked in neighbors.items() if not linked}
 
     nodes: list[ANode] = []
-    node_font_size = 18 if full_view_mode else (16 if focus_mode else 14)
-    edge_font_size = 16 if full_view_mode else (14 if focus_mode else 13)
+    node_font_size = 16 if canvas_only else (18 if full_view_mode else (16 if focus_mode else 14))
+    edge_font_size = 14 if canvas_only else (16 if full_view_mode else (14 if focus_mode else 13))
     for component in components:
         x, y = graph_positions.get(component.id, (0.0, 0.0))
         if manual_layout_mode:
@@ -829,8 +832,8 @@ def _render_architecture_view(
         )
 
     graph_config = AConfig(
-        width=1850 if full_view_mode else (1400 if focus_mode else 1100),
-        height=980 if full_view_mode else (760 if focus_mode else 520),
+        width=1600 if canvas_only else (1850 if full_view_mode else (1400 if focus_mode else 1100)),
+        height=760 if canvas_only else (980 if full_view_mode else (760 if focus_mode else 520)),
         directed=False,
         physics=False,
         hierarchical=False,
@@ -852,6 +855,16 @@ def _render_architecture_view(
             config=graph_config,
             key="architecture_drag_graph",
         )
+
+    if canvas_only:
+        st.caption(
+            f"Components: {len(components)} | Interfaces: {len(interfaces)} | "
+            f"Model status: {model_status or '-'}"
+        )
+        st.caption(
+            "Legend: green=connected, yellow=orphan, red=low readiness, gray dashed=not planned."
+        )
+        return
 
     summary_cols = st.columns(3)
     summary_cols[0].metric("Components", str(len(components)))
@@ -904,6 +917,39 @@ def _render_architecture_view(
             st.dataframe(saved_rows, use_container_width=True, hide_index=True)
         else:
             st.caption("No manual positions saved. Auto-layout is active.")
+
+
+def _render_architecture_supporting_sections(
+    components: list[Component], interfaces: list[Interface]
+) -> None:
+    st.caption("Supporting architecture details for editing workflow.")
+
+    st.subheader("Interface Matrix (IRL)")
+    _, matrix_rows = _build_irl_matrix_view(components, interfaces)
+    st.dataframe(matrix_rows, use_container_width=True, hide_index=True)
+    st.caption(
+        "Diagonal self-cells are fixed to 9. Non-diagonal missing interfaces are shown as 0."
+    )
+
+    st.subheader("Layout Editor")
+    if st.button("Reset Layout", type="secondary", key="reset_layout_supporting_sections"):
+        _reset_node_positions()
+        st.session_state.action_notice = "Layout reset to automatic positioning."
+        st.rerun()
+
+    saved_positions = _extract_saved_positions(
+        st.session_state.get("visualization_metadata", {}).get("node_positions", {}),
+        {component.id for component in components},
+    )
+    saved_rows = [
+        {"Component": component_id, "x": round(pos[0], 2), "y": round(pos[1], 2)}
+        for component_id, pos in sorted(saved_positions.items())
+    ]
+    st.caption("Saved manual positions")
+    if saved_rows:
+        st.dataframe(saved_rows, use_container_width=True, hide_index=True)
+    else:
+        st.caption("No manual positions saved. Auto-layout is active.")
 
 
 def _suggest_irl_from_answers(answers: dict[str, bool]) -> tuple[int, str, str]:
@@ -1585,6 +1631,8 @@ def main() -> None:
                 components, component_errors = _render_components_editor()
                 valid_component_ids = [component.id for component in components]
                 interface_errors = _render_interfaces_editor(valid_component_ids)
+                with st.expander("Architecture tables/layout controls", expanded=False):
+                    _render_architecture_supporting_sections(components, st.session_state.get("interfaces", []))
                 st.markdown('</div>', unsafe_allow_html=True)
 
             with graph_col:
@@ -1657,6 +1705,7 @@ def main() -> None:
             focus_mode=False,
             full_view_mode=True,
             model_status=model_status,
+            canvas_only=False,
         )
     elif focus_mode:
         _render_architecture_view(
@@ -1665,17 +1714,18 @@ def main() -> None:
             focus_mode=True,
             full_view_mode=False,
             model_status=model_status,
+            canvas_only=False,
         )
     elif use_split_view and graph_render_container is not None:
         with graph_render_container:
-            st.subheader("Live Architecture")
-            st.caption("Graph stays visible and updates from current session state while editing.")
+            st.subheader("Live Architecture Canvas")
             _render_architecture_view(
                 components,
                 interfaces,
                 focus_mode=False,
                 full_view_mode=False,
                 model_status=model_status,
+                canvas_only=True,
             )
     else:
         _render_architecture_view(
@@ -1684,6 +1734,7 @@ def main() -> None:
             focus_mode=False,
             full_view_mode=False,
             model_status=model_status,
+            canvas_only=False,
         )
 
     with summary_placeholder.container():
