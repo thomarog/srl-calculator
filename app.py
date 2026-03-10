@@ -15,8 +15,15 @@ from custom_components.draggable_agraph import (
     agraph_draggable,
 )
 from core.engine import calculate_srl
+from core.export_naming import build_default_export_filename, sanitize_windows_filename
 from core.io import load_project_data, load_project_data_from_json_text
 from core.models import Component, Interface, ProjectData
+from core.state_sync import (
+    build_irl_matrix,
+    propagate_component_rename,
+    prune_stale_interfaces,
+    remove_component_and_related_interfaces,
+)
 
 
 DEFAULT_PROJECT = Path("data/sample_project.json")
@@ -352,28 +359,7 @@ def _component_map(components: list[Component]) -> dict[str, Component]:
 def _build_irl_matrix_view(
     components: list[Component], interfaces: list[Interface]
 ) -> tuple[list[str], list[dict[str, Any]]]:
-    component_ids = [component.id for component in components]
-    component_set = set(component_ids)
-    matrix: dict[str, dict[str, int]] = {
-        row_id: {col_id: 0 for col_id in component_ids} for row_id in component_ids
-    }
-    for component_id in component_ids:
-        matrix[component_id][component_id] = 9
-
-    for interface in interfaces:
-        a, b = _pair_key(interface.component_a_id, interface.component_b_id)
-        if a in component_set and b in component_set:
-            matrix[a][b] = int(interface.irl)
-            matrix[b][a] = int(interface.irl)
-
-    rows: list[dict[str, Any]] = []
-    for row_id in component_ids:
-        row: dict[str, Any] = {"Component": row_id}
-        for col_id in component_ids:
-            row[col_id] = matrix[row_id][col_id]
-        rows.append(row)
-
-    return component_ids, rows
+    return build_irl_matrix(components, interfaces)
 
 
 def _normalize_node_positions(
@@ -715,22 +701,42 @@ def _build_graphviz_dot(
 
 
 def _render_architecture_view(
-    components: list[Component], interfaces: list[Interface]
+    components: list[Component],
+    interfaces: list[Interface],
+    focus_mode: bool = False,
+    full_view_mode: bool = False,
+    model_status: str | None = None,
+    canvas_only: bool = False,
 ) -> None:
     component_ids = {component.id for component in components}
     _apply_pending_drag_event(component_ids)
 
-    st.header("Architecture View")
-    st.caption("Read-only visualization of the current architecture in session state.")
+    if not canvas_only:
+        if full_view_mode:
+            st.header("Graph Full View")
+            st.caption(
+                "Near-full-screen graph mode (Streamlit-native alternative to browser full-screen pop-out)."
+            )
+        elif focus_mode:
+            st.header("Architecture Focus Mode")
+            st.caption(
+                "Streamlit does not support a true pop-out window in this app, so focus mode "
+                "is provided as an in-page large-graph view."
+            )
+        else:
+            st.header("Architecture View")
+            st.caption("Read-only visualization of the current architecture in session state.")
 
-    st.subheader("Interface Matrix (IRL)")
-    _, matrix_rows = _build_irl_matrix_view(components, interfaces)
-    st.dataframe(matrix_rows, use_container_width=True, hide_index=True)
-    st.caption(
-        "Diagonal self-cells are fixed to 9. Non-diagonal missing interfaces are shown as 0."
-    )
+    if not focus_mode and not full_view_mode and not canvas_only:
+        st.subheader("Interface Matrix (IRL)")
+        _, matrix_rows = _build_irl_matrix_view(components, interfaces)
+        st.dataframe(matrix_rows, use_container_width=True, hide_index=True)
+        st.caption(
+            "Diagonal self-cells are fixed to 9. Non-diagonal missing interfaces are shown as 0."
+        )
 
-    st.subheader("Network View")
+    if not canvas_only:
+        st.subheader("Network View")
     visualization_metadata = st.session_state.get("visualization_metadata", {})
     node_positions = visualization_metadata.get("node_positions", {})
     graph_positions, manual_layout_mode = _compute_graph_positions(
@@ -740,6 +746,8 @@ def _render_architecture_view(
     orphan_ids = {component_id for component_id, linked in neighbors.items() if not linked}
 
     nodes: list[ANode] = []
+    node_font_size = 16 if canvas_only else (18 if full_view_mode else (16 if focus_mode else 14))
+    edge_font_size = 14 if canvas_only else (16 if full_view_mode else (14 if focus_mode else 13))
     for component in components:
         x, y = graph_positions.get(component.id, (0.0, 0.0))
         if manual_layout_mode:
@@ -781,7 +789,7 @@ def _render_architecture_view(
                 fixed=False,
                 borderWidth=2,
                 borderWidthSelected=3,
-                font={"size": 14, "color": "#f8fafc", "face": "Inter"},
+                font={"size": node_font_size, "color": "#f8fafc", "face": "Inter"},
             )
         )
 
@@ -815,7 +823,7 @@ def _render_architecture_view(
                 width=2,
                 font={
                     "color": "#f8fafc",
-                    "size": 13,
+                    "size": edge_font_size,
                     "strokeWidth": 3,
                     "strokeColor": "#111827",
                     "background": "rgba(15, 23, 42, 0.75)",
@@ -824,8 +832,8 @@ def _render_architecture_view(
         )
 
     graph_config = AConfig(
-        width=1100,
-        height=520,
+        width=1600 if canvas_only else (1850 if full_view_mode else (1400 if focus_mode else 1100)),
+        height=760 if canvas_only else (980 if full_view_mode else (760 if focus_mode else 520)),
         directed=False,
         physics=False,
         hierarchical=False,
@@ -847,6 +855,22 @@ def _render_architecture_view(
             config=graph_config,
             key="architecture_drag_graph",
         )
+
+    if canvas_only:
+        st.caption(
+            f"Components: {len(components)} | Interfaces: {len(interfaces)} | "
+            f"Model status: {model_status or '-'}"
+        )
+        st.caption(
+            "Legend: green=connected, yellow=orphan, red=low readiness, gray dashed=not planned."
+        )
+        return
+
+    summary_cols = st.columns(3)
+    summary_cols[0].metric("Components", str(len(components)))
+    summary_cols[1].metric("Interfaces", str(len(interfaces)))
+    summary_cols[2].metric("Model Status", model_status or "-")
+
     st.caption(
         "Color key: green=normal/connected, yellow=orphan/incomplete, "
         "red=very low readiness (TRL<=2 or IRL<=2), gray dashed=not planned (IRL 0)."
@@ -862,6 +886,53 @@ def _render_architecture_view(
         "`visualization.node_positions`."
     )
     if st.button("Reset Layout", type="secondary"):
+        _reset_node_positions()
+        st.session_state.action_notice = "Layout reset to automatic positioning."
+        st.rerun()
+
+    saved_positions = _extract_saved_positions(
+        st.session_state.get("visualization_metadata", {}).get("node_positions", {}),
+        {component.id for component in components},
+    )
+    saved_rows = [
+        {"Component": component_id, "x": round(pos[0], 2), "y": round(pos[1], 2)}
+        for component_id, pos in sorted(saved_positions.items())
+    ]
+
+    if focus_mode or full_view_mode:
+        with st.expander("Saved manual positions", expanded=False):
+            if saved_rows:
+                st.dataframe(saved_rows, use_container_width=True, hide_index=True)
+            else:
+                st.caption("No manual positions saved. Auto-layout is active.")
+        with st.expander("Interface Matrix (IRL)", expanded=False):
+            _, matrix_rows = _build_irl_matrix_view(components, interfaces)
+            st.dataframe(matrix_rows, use_container_width=True, hide_index=True)
+            st.caption(
+                "Diagonal self-cells are fixed to 9. Non-diagonal missing interfaces are shown as 0."
+            )
+    else:
+        st.caption("Saved manual positions")
+        if saved_rows:
+            st.dataframe(saved_rows, use_container_width=True, hide_index=True)
+        else:
+            st.caption("No manual positions saved. Auto-layout is active.")
+
+
+def _render_architecture_supporting_sections(
+    components: list[Component], interfaces: list[Interface]
+) -> None:
+    st.caption("Supporting architecture details for editing workflow.")
+
+    st.subheader("Interface Matrix (IRL)")
+    _, matrix_rows = _build_irl_matrix_view(components, interfaces)
+    st.dataframe(matrix_rows, use_container_width=True, hide_index=True)
+    st.caption(
+        "Diagonal self-cells are fixed to 9. Non-diagonal missing interfaces are shown as 0."
+    )
+
+    st.subheader("Layout Editor")
+    if st.button("Reset Layout", type="secondary", key="reset_layout_supporting_sections"):
         _reset_node_positions()
         st.session_state.action_notice = "Layout reset to automatic positioning."
         st.rerun()
@@ -990,6 +1061,55 @@ def _set_project_state(project: ProjectData, source_label: str) -> None:
     st.session_state.project_loaded = True
 
 
+def _update_component_references(old_id: str, new_id: str) -> tuple[int, int]:
+    if old_id == new_id:
+        return 0, 0
+
+    interfaces: list[Interface] = st.session_state.get("interfaces", [])
+    synchronized, updated_ref_count, duplicate_count = propagate_component_rename(
+        interfaces,
+        old_id=old_id,
+        new_id=new_id,
+    )
+    st.session_state.interfaces = synchronized
+
+    visualization = st.session_state.get("visualization_metadata", {})
+    if not isinstance(visualization, dict):
+        visualization = {}
+    node_positions = visualization.get("node_positions", {})
+    if isinstance(node_positions, dict) and old_id in node_positions:
+        node_positions[new_id] = node_positions.pop(old_id)
+        visualization["node_positions"] = node_positions
+        st.session_state.visualization_metadata = visualization
+
+    return updated_ref_count, duplicate_count
+
+
+def _remove_deleted_component_references(component_id: str) -> int:
+    interfaces: list[Interface] = st.session_state.get("interfaces", [])
+    kept, removed_count = remove_component_and_related_interfaces(interfaces, component_id)
+    st.session_state.interfaces = kept
+
+    visualization = st.session_state.get("visualization_metadata", {})
+    if not isinstance(visualization, dict):
+        visualization = {}
+    node_positions = visualization.get("node_positions", {})
+    if isinstance(node_positions, dict) and component_id in node_positions:
+        del node_positions[component_id]
+        visualization["node_positions"] = node_positions
+        st.session_state.visualization_metadata = visualization
+
+    return removed_count
+
+
+def _cleanup_stale_interface_references(component_ids: set[str]) -> int:
+    interfaces: list[Interface] = st.session_state.get("interfaces", [])
+    kept, removed_count = prune_stale_interfaces(interfaces, component_ids)
+    if removed_count:
+        st.session_state.interfaces = kept
+    return removed_count
+
+
 def _render_components_editor() -> tuple[list[Component], list[str]]:
     st.header("Components Editor")
     st.caption("Components are editable here.")
@@ -1057,6 +1177,7 @@ def _render_components_editor() -> tuple[list[Component], list[str]]:
                 save_submitted = st.form_submit_button("Save Component")
 
             if save_submitted:
+                old_id = str(selected_row.get("id", "")).strip()
                 updated_row = {
                     "id": edit_id.strip(),
                     "name": edit_name.strip(),
@@ -1067,7 +1188,21 @@ def _render_components_editor() -> tuple[list[Component], list[str]]:
                 rows_copy[selected_idx] = updated_row
                 st.session_state.component_rows = rows_copy
                 st.session_state.selected_component_id = updated_row["id"] or None
+                updated_refs, deduped_refs = _update_component_references(
+                    old_id=old_id,
+                    new_id=updated_row["id"],
+                )
                 st.session_state.last_result = None
+                if old_id and updated_row["id"] and old_id != updated_row["id"]:
+                    suffix = (
+                        f" (removed {deduped_refs} conflicting/self interfaces)."
+                        if deduped_refs
+                        else "."
+                    )
+                    st.session_state.action_notice = (
+                        f"Renamed component {old_id} to {updated_row['id']} and updated "
+                        f"{updated_refs} associated interfaces{suffix}"
+                    )
                 st.rerun()
 
             if st.button("Delete Selected Component", type="secondary"):
@@ -1075,10 +1210,13 @@ def _render_components_editor() -> tuple[list[Component], list[str]]:
                 deleted_id = rows_copy[selected_idx].get("id")
                 del rows_copy[selected_idx]
                 st.session_state.component_rows = rows_copy
+                removed_interfaces = _remove_deleted_component_references(str(deleted_id))
                 remaining_ids = [str(row.get("id", "")).strip() for row in rows_copy if str(row.get("id", "")).strip()]
                 st.session_state.selected_component_id = remaining_ids[0] if remaining_ids else None
                 st.session_state.last_result = None
-                st.session_state.action_notice = f"Deleted component: {deleted_id}"
+                st.session_state.action_notice = (
+                    f"Deleted component {deleted_id} and removed {removed_interfaces} associated interfaces."
+                )
                 st.rerun()
 
     components, component_errors = _build_components_from_rows(
@@ -1093,6 +1231,12 @@ def _render_interfaces_editor(valid_component_ids: list[str]) -> list[str]:
 
     interfaces: list[Interface] = st.session_state.get("interfaces", [])
     component_id_set = set(valid_component_ids)
+    stale_removed = _cleanup_stale_interface_references(component_id_set)
+    if stale_removed:
+        interfaces = st.session_state.get("interfaces", [])
+        st.warning(
+            f"Removed {stale_removed} stale interface(s) with missing components during refresh."
+        )
     interface_rows = [_interface_to_row(interface, component_id_set) for interface in interfaces]
 
     st.subheader("Current Interfaces")
@@ -1150,7 +1294,7 @@ def _render_interfaces_editor(valid_component_ids: list[str]) -> list[str]:
         planned = st.checkbox("Planned", value=default_planned)
         irl = st.number_input("IRL", min_value=0, max_value=9, value=default_irl, step=1)
         note = st.text_area("Notes / Evidence", value=default_note)
-        save_interface = st.form_submit_button("Save Interface")
+        save_interface_clicked = st.form_submit_button("Save Interface")
 
     with st.expander("IRL Guidance Assistant (optional)", expanded=False):
         st.caption(
@@ -1216,7 +1360,7 @@ def _render_interfaces_editor(valid_component_ids: list[str]) -> list[str]:
         st.write(f"Why: {explanation}")
         st.write(next_hint)
 
-    if save_interface:
+    if save_interface_clicked:
         a, b = _pair_key(component_a, component_b)
         validation_errors: list[str] = []
         if a == b:
@@ -1275,6 +1419,162 @@ def _render_interfaces_editor(valid_component_ids: list[str]) -> list[str]:
     return _validate_interfaces(st.session_state.get("interfaces", []), component_id_set)
 
 
+def _render_post_editor_sections(
+    components: list[Component],
+    interfaces: list[Interface],
+    component_errors: list[str],
+    interface_errors: list[str],
+    consistency_status: str,
+    consistency_messages: list[str],
+    baseline_diff_messages: list[str],
+    can_recalculate_from_interfaces: bool,
+    model_status: str,
+) -> None:
+    st.subheader("Current Project Summary")
+    sum_col_1, sum_col_2, sum_col_3, sum_col_4 = st.columns(4)
+    sum_col_1.metric("Project", st.session_state.get("project_name", ""))
+    sum_col_2.metric("Components", str(len(components)))
+    sum_col_3.metric("Interfaces", str(len(interfaces)))
+    sum_col_4.metric("Model Status", model_status)
+
+    if component_errors:
+        st.warning("Please fix component validation issues before recalculation.")
+        for message in component_errors:
+            st.write(f"- {message}")
+    if interface_errors:
+        st.warning("Please fix interface validation issues before recalculation.")
+        for message in interface_errors:
+            st.write(f"- {message}")
+
+    st.header("Interface Consistency / Completeness")
+    if can_recalculate_from_interfaces:
+        st.success(consistency_status)
+    elif consistency_status.endswith("INCOMPLETE"):
+        st.warning(consistency_status)
+    else:
+        st.error(consistency_status)
+    for message in consistency_messages:
+        st.write(message)
+
+    with st.expander("Differences from loaded baseline (informational only)"):
+        st.caption("These differences do not block recalculation by themselves.")
+        for message in baseline_diff_messages:
+            st.write(message)
+
+    recalc_disabled = bool(
+        component_errors or interface_errors or not can_recalculate_from_interfaces
+    )
+    if st.button("Recalculate SRL", disabled=recalc_disabled):
+        try:
+            project = ProjectData(
+                name=st.session_state.get("project_name", "SRL Project"),
+                components=components,
+                interfaces=interfaces,
+                revision=st.session_state.get("project_revision", ""),
+                project_date=st.session_state.get("project_date", ""),
+                notes=st.session_state.get("project_notes", ""),
+                evidence=st.session_state.get("project_evidence", []),
+                visualization_metadata=st.session_state.get(
+                    "visualization_metadata", {"node_positions": {}}
+                ),
+            )
+            st.session_state.last_result = calculate_srl(project)
+            st.rerun()
+        except ValueError as exc:
+            st.error(f"Calculation failed due to invalid project data: {exc}")
+        except Exception as exc:
+            st.error(f"Calculation failed: {exc}")
+
+    export_col_1, _ = st.columns(2)
+    with export_col_1:
+        st.header("Save / Export Project JSON")
+        if component_errors:
+            st.caption("Fix component validation errors to enable export.")
+        else:
+            export_project = ProjectData(
+                name=st.session_state.get("project_name", "SRL Project"),
+                components=components,
+                interfaces=interfaces,
+                revision=st.session_state.get("project_revision", ""),
+                project_date=st.session_state.get("project_date", ""),
+                notes=st.session_state.get("project_notes", ""),
+                evidence=st.session_state.get("project_evidence", []),
+                visualization_metadata=st.session_state.get(
+                    "visualization_metadata", {"node_positions": {}}
+                ),
+            )
+            include_timestamp = st.checkbox(
+                "Add timestamp suffix to export filename",
+                value=False,
+                key="export_add_timestamp",
+            )
+            suggested_filename = build_default_export_filename(
+                project_name=export_project.name,
+                revision=export_project.revision,
+                project_date=export_project.project_date,
+                include_timestamp=include_timestamp,
+            )
+            if "export_filename" not in st.session_state:
+                st.session_state.export_filename = suggested_filename
+
+            filename_col_1, filename_col_2 = st.columns([3, 1])
+            with filename_col_1:
+                entered_filename = st.text_input(
+                    "Export filename",
+                    value=st.session_state.get("export_filename", suggested_filename),
+                    help="Windows-safe filename. .json extension is applied automatically.",
+                )
+            with filename_col_2:
+                if st.button("Use Suggested", key="use_suggested_export_filename"):
+                    st.session_state.export_filename = suggested_filename
+                    st.rerun()
+
+            st.session_state.export_filename = entered_filename
+            final_filename = sanitize_windows_filename(entered_filename or suggested_filename)
+            if final_filename != (entered_filename or ""):
+                st.caption(f"Using sanitized filename: `{final_filename}`")
+
+            st.download_button(
+                "Download Current Project JSON",
+                data=_project_json_text(
+                    export_project.name,
+                    export_project.revision,
+                    export_project.project_date,
+                    export_project.notes,
+                    export_project.components,
+                    export_project.interfaces,
+                    export_project.evidence,
+                    export_project.visualization_metadata,
+                ),
+                file_name=final_filename,
+                mime="application/json",
+            )
+
+    result = st.session_state.get("last_result")
+    st.header("Results Summary")
+    if result is None:
+        st.info("Click 'Recalculate SRL' to view results.")
+    else:
+        metric_col_1, metric_col_2 = st.columns(2)
+        metric_col_1.metric("Composite SRL", f"{result.composite_srl:.3f}")
+        metric_col_2.metric("Translated SRL Level", f"{result.srl_level}")
+
+    st.header("Component Results Table")
+    if result is None:
+        st.caption("No results yet.")
+    else:
+        table_rows = [
+            {
+                "Component ID": item.component_id,
+                "m_i": item.integrations_count,
+                "Raw SRL": round(item.raw_srl, 3),
+                "Component SRL": round(item.component_srl, 3),
+            }
+            for item in result.component_results
+        ]
+        st.table(table_rows)
+
+
 def main() -> None:
     st.set_page_config(page_title="SRL Calculator", layout="wide")
     st.title("SRL Calculator")
@@ -1329,7 +1629,15 @@ def main() -> None:
         st.success(st.session_state.action_notice)
         st.session_state.action_notice = None
 
-    summary_placeholder = st.empty()
+    view_mode = st.radio(
+        "View Mode",
+        options=["Edit Mode", "Architecture Focus Mode", "Graph Full View"],
+        horizontal=True,
+        index=0,
+        help="Switch between full editing workflow and large architecture-focused view.",
+    )
+    focus_mode = view_mode == "Architecture Focus Mode"
+    graph_full_view_mode = view_mode == "Graph Full View"
 
     st.header("Project Workflow")
     action_col_1, action_col_2, action_col_3, action_col_4 = st.columns(4)
@@ -1367,41 +1675,169 @@ def main() -> None:
 
     st.info(st.session_state.get("source_label", "No project loaded."))
 
-    st.subheader("Project Metadata")
-    meta_col_1, meta_col_2, meta_col_3 = st.columns(3)
-    with meta_col_1:
-        st.session_state.project_name = st.text_input(
-            "Project name",
-            value=st.session_state.get("project_name", "SRL Project"),
-        )
-    with meta_col_2:
-        st.session_state.project_revision = st.text_input(
-            "Revision",
-            value=st.session_state.get("project_revision", "1"),
-        )
-    with meta_col_3:
-        st.session_state.project_date = st.text_input(
-            "Date",
-            value=st.session_state.get("project_date", date.today().isoformat()),
-        )
-    st.session_state.project_notes = st.text_area(
-        "Project notes",
-        value=st.session_state.get("project_notes", ""),
-    )
-    evidence_default_text = _evidence_items_to_text(st.session_state.get("project_evidence", []))
-    evidence_text = st.text_area(
-        "Evidence / notes entries (one line per entry)",
-        value=evidence_default_text,
-        help="Saved to project JSON under 'evidence'.",
-    )
-    st.session_state.project_evidence = _evidence_text_to_items(evidence_text)
+    use_split_view = False
+    graph_render_container = None
+    left_post_container = None
 
-    components, component_errors = _render_components_editor()
-    valid_component_ids = [component.id for component in components]
-    interface_errors = _render_interfaces_editor(valid_component_ids)
+    if focus_mode or graph_full_view_mode:
+        with st.expander("Project Metadata (collapsed in focus mode)", expanded=False):
+            st.session_state.project_name = st.text_input(
+                "Project name",
+                value=st.session_state.get("project_name", "SRL Project"),
+            )
+            meta_col_1, meta_col_2 = st.columns(2)
+            with meta_col_1:
+                st.session_state.project_revision = st.text_input(
+                    "Revision",
+                    value=st.session_state.get("project_revision", "1"),
+                )
+            with meta_col_2:
+                st.session_state.project_date = st.text_input(
+                    "Date",
+                    value=st.session_state.get("project_date", date.today().isoformat()),
+                )
+            st.session_state.project_notes = st.text_area(
+                "Project notes",
+                value=st.session_state.get("project_notes", ""),
+            )
+            evidence_default_text = _evidence_items_to_text(st.session_state.get("project_evidence", []))
+            evidence_text = st.text_area(
+                "Evidence / notes entries (one line per entry)",
+                value=evidence_default_text,
+                help="Saved to project JSON under 'evidence'.",
+            )
+            st.session_state.project_evidence = _evidence_text_to_items(evidence_text)
+
+        with st.expander("Editors (switch to Edit Mode for full workflow)", expanded=False):
+            components, component_errors = _build_components_from_rows(
+                st.session_state.get("component_rows", [])
+            )
+            valid_component_ids = [component.id for component in components]
+            interfaces = st.session_state.get("interfaces", [])
+            interface_errors = _validate_interfaces(interfaces, set(valid_component_ids))
+            st.caption("Components and Interfaces editors are hidden in focus mode.")
+    else:
+        st.subheader("Edit Workspace")
+        use_split_view = st.toggle(
+            "Split View: keep live graph visible while editing",
+            value=True,
+            help=(
+                "Recommended on wider screens. Turn off on smaller screens to use "
+                "a stacked layout."
+            ),
+        )
+
+        if use_split_view:
+            st.markdown(
+                """
+                <style>
+                .srl-workspace-col {
+                    height: calc(100vh - 6.5rem);
+                }
+                .srl-editor-scroll {
+                    height: calc(100vh - 8rem);
+                    overflow-y: auto;
+                    padding-right: 0.35rem;
+                    border-right: 1px solid rgba(148, 163, 184, 0.25);
+                }
+                .srl-sticky-graph {
+                    position: sticky;
+                    top: 0.6rem;
+                    max-height: calc(100vh - 1.0rem);
+                    overflow: auto;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            edit_col, graph_col = st.columns([0.8, 1.2], gap="large")
+            with edit_col:
+                st.markdown('<div class="srl-workspace-col">', unsafe_allow_html=True)
+                st.markdown('<div class="srl-editor-scroll">', unsafe_allow_html=True)
+                st.caption(
+                    "Editing flow: Project Metadata → Components (TRL) → Interfaces (IRL). "
+                    "Results and Save/Export remain below."
+                )
+                st.subheader("Project Metadata")
+                meta_col_1, meta_col_2, meta_col_3 = st.columns(3)
+                with meta_col_1:
+                    st.session_state.project_name = st.text_input(
+                        "Project name",
+                        value=st.session_state.get("project_name", "SRL Project"),
+                    )
+                with meta_col_2:
+                    st.session_state.project_revision = st.text_input(
+                        "Revision",
+                        value=st.session_state.get("project_revision", "1"),
+                    )
+                with meta_col_3:
+                    st.session_state.project_date = st.text_input(
+                        "Date",
+                        value=st.session_state.get("project_date", date.today().isoformat()),
+                    )
+                st.session_state.project_notes = st.text_area(
+                    "Project notes",
+                    value=st.session_state.get("project_notes", ""),
+                )
+                evidence_default_text = _evidence_items_to_text(st.session_state.get("project_evidence", []))
+                evidence_text = st.text_area(
+                    "Evidence / notes entries (one line per entry)",
+                    value=evidence_default_text,
+                    help="Saved to project JSON under 'evidence'.",
+                )
+                st.session_state.project_evidence = _evidence_text_to_items(evidence_text)
+
+                components, component_errors = _render_components_editor()
+                valid_component_ids = [component.id for component in components]
+                interface_errors = _render_interfaces_editor(valid_component_ids)
+                with st.expander("Architecture tables/layout controls", expanded=False):
+                    _render_architecture_supporting_sections(components, st.session_state.get("interfaces", []))
+                left_post_container = st.container()
+                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            with graph_col:
+                st.markdown('<div class="srl-workspace-col">', unsafe_allow_html=True)
+                st.markdown('<div class="srl-sticky-graph">', unsafe_allow_html=True)
+                graph_render_container = st.container()
+                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.caption("Stacked layout active for narrower screens.")
+            st.subheader("Project Metadata")
+            meta_col_1, meta_col_2, meta_col_3 = st.columns(3)
+            with meta_col_1:
+                st.session_state.project_name = st.text_input(
+                    "Project name",
+                    value=st.session_state.get("project_name", "SRL Project"),
+                )
+            with meta_col_2:
+                st.session_state.project_revision = st.text_input(
+                    "Revision",
+                    value=st.session_state.get("project_revision", "1"),
+                )
+            with meta_col_3:
+                st.session_state.project_date = st.text_input(
+                    "Date",
+                    value=st.session_state.get("project_date", date.today().isoformat()),
+                )
+            st.session_state.project_notes = st.text_area(
+                "Project notes",
+                value=st.session_state.get("project_notes", ""),
+            )
+            evidence_default_text = _evidence_items_to_text(st.session_state.get("project_evidence", []))
+            evidence_text = st.text_area(
+                "Evidence / notes entries (one line per entry)",
+                value=evidence_default_text,
+                help="Saved to project JSON under 'evidence'.",
+            )
+            st.session_state.project_evidence = _evidence_text_to_items(evidence_text)
+
+            components, component_errors = _render_components_editor()
+            valid_component_ids = [component.id for component in components]
+            interface_errors = _render_interfaces_editor(valid_component_ids)
 
     interfaces: list[Interface] = st.session_state.get("interfaces", [])
-    _render_architecture_view(components, interfaces)
 
     original_component_ids: set[str] = st.session_state.get("original_component_ids", set())
     baseline_neighbor_counts: dict[str, int] = st.session_state.get(
@@ -1425,119 +1861,70 @@ def main() -> None:
         consistency_status, component_errors, interface_errors
     )
 
-    with summary_placeholder.container():
-        st.subheader("Current Project Summary")
-        sum_col_1, sum_col_2, sum_col_3, sum_col_4 = st.columns(4)
-        sum_col_1.metric("Project", st.session_state.get("project_name", ""))
-        sum_col_2.metric("Components", str(len(components)))
-        sum_col_3.metric("Interfaces", str(len(interfaces)))
-        sum_col_4.metric("Model Status", model_status)
-
-    if component_errors:
-        st.warning("Please fix component validation issues before recalculation.")
-        for message in component_errors:
-            st.write(f"- {message}")
-    if interface_errors:
-        st.warning("Please fix interface validation issues before recalculation.")
-        for message in interface_errors:
-            st.write(f"- {message}")
-
-    st.header("Interface Consistency / Completeness")
-    if can_recalculate_from_interfaces:
-        st.success(consistency_status)
-    elif consistency_status.endswith("INCOMPLETE"):
-        st.warning(consistency_status)
+    if graph_full_view_mode:
+        _render_architecture_view(
+            components,
+            interfaces,
+            focus_mode=False,
+            full_view_mode=True,
+            model_status=model_status,
+            canvas_only=False,
+        )
+    elif focus_mode:
+        _render_architecture_view(
+            components,
+            interfaces,
+            focus_mode=True,
+            full_view_mode=False,
+            model_status=model_status,
+            canvas_only=False,
+        )
+    elif use_split_view and graph_render_container is not None:
+        with graph_render_container:
+            st.subheader("Live Architecture Canvas")
+            _render_architecture_view(
+                components,
+                interfaces,
+                focus_mode=False,
+                full_view_mode=False,
+                model_status=model_status,
+                canvas_only=True,
+            )
     else:
-        st.error(consistency_status)
-    for message in consistency_messages:
-        st.write(message)
+        _render_architecture_view(
+            components,
+            interfaces,
+            focus_mode=False,
+            full_view_mode=False,
+            model_status=model_status,
+            canvas_only=False,
+        )
 
-    with st.expander("Differences from loaded baseline (informational only)"):
-        st.caption("These differences do not block recalculation by themselves.")
-        for message in baseline_diff_messages:
-            st.write(message)
-
-    recalc_disabled = bool(
-        component_errors or interface_errors or not can_recalculate_from_interfaces
-    )
-    if st.button("Recalculate SRL", disabled=recalc_disabled):
-        try:
-            project = ProjectData(
-                name=st.session_state.get("project_name", "SRL Project"),
+    if use_split_view and left_post_container is not None and not focus_mode and not graph_full_view_mode:
+        with left_post_container:
+            _render_post_editor_sections(
                 components=components,
                 interfaces=interfaces,
-                revision=st.session_state.get("project_revision", ""),
-                project_date=st.session_state.get("project_date", ""),
-                notes=st.session_state.get("project_notes", ""),
-                evidence=st.session_state.get("project_evidence", []),
-                visualization_metadata=st.session_state.get(
-                    "visualization_metadata", {"node_positions": {}}
-                ),
+                component_errors=component_errors,
+                interface_errors=interface_errors,
+                consistency_status=consistency_status,
+                consistency_messages=consistency_messages,
+                baseline_diff_messages=baseline_diff_messages,
+                can_recalculate_from_interfaces=can_recalculate_from_interfaces,
+                model_status=model_status,
             )
-            st.session_state.last_result = calculate_srl(project)
-            st.rerun()
-        except ValueError as exc:
-            st.error(f"Calculation failed due to invalid project data: {exc}")
-        except Exception as exc:
-            st.error(f"Calculation failed: {exc}")
-
-    export_col_1, export_col_2 = st.columns(2)
-    with export_col_1:
-        st.header("Save / Export Project JSON")
-        if component_errors:
-            st.caption("Fix component validation errors to enable export.")
-        else:
-            export_project = ProjectData(
-                name=st.session_state.get("project_name", "SRL Project"),
-                components=components,
-                interfaces=interfaces,
-                revision=st.session_state.get("project_revision", ""),
-                project_date=st.session_state.get("project_date", ""),
-                notes=st.session_state.get("project_notes", ""),
-                evidence=st.session_state.get("project_evidence", []),
-                visualization_metadata=st.session_state.get(
-                    "visualization_metadata", {"node_positions": {}}
-                ),
-            )
-            st.download_button(
-                "Download Current Project JSON",
-                data=_project_json_text(
-                    export_project.name,
-                    export_project.revision,
-                    export_project.project_date,
-                    export_project.notes,
-                    export_project.components,
-                    export_project.interfaces,
-                    export_project.evidence,
-                    export_project.visualization_metadata,
-                ),
-                file_name="project_export.json",
-                mime="application/json",
-            )
-
-    result = st.session_state.get("last_result")
-    st.header("Results Summary")
-    if result is None:
-        st.info("Click 'Recalculate SRL' to view results.")
     else:
-        metric_col_1, metric_col_2 = st.columns(2)
-        metric_col_1.metric("Composite SRL", f"{result.composite_srl:.3f}")
-        metric_col_2.metric("Translated SRL Level", f"{result.srl_level}")
-
-    st.header("Component Results Table")
-    if result is None:
-        st.caption("No results yet.")
-    else:
-        table_rows = [
-            {
-                "Component ID": item.component_id,
-                "m_i": item.integrations_count,
-                "Raw SRL": round(item.raw_srl, 3),
-                "Component SRL": round(item.component_srl, 3),
-            }
-            for item in result.component_results
-        ]
-        st.table(table_rows)
+        _render_post_editor_sections(
+            components=components,
+            interfaces=interfaces,
+            component_errors=component_errors,
+            interface_errors=interface_errors,
+            consistency_status=consistency_status,
+            consistency_messages=consistency_messages,
+            baseline_diff_messages=baseline_diff_messages,
+            can_recalculate_from_interfaces=can_recalculate_from_interfaces,
+            model_status=model_status,
+        )
 
 
 if __name__ == "__main__":
