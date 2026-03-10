@@ -1419,6 +1419,162 @@ def _render_interfaces_editor(valid_component_ids: list[str]) -> list[str]:
     return _validate_interfaces(st.session_state.get("interfaces", []), component_id_set)
 
 
+def _render_post_editor_sections(
+    components: list[Component],
+    interfaces: list[Interface],
+    component_errors: list[str],
+    interface_errors: list[str],
+    consistency_status: str,
+    consistency_messages: list[str],
+    baseline_diff_messages: list[str],
+    can_recalculate_from_interfaces: bool,
+    model_status: str,
+) -> None:
+    st.subheader("Current Project Summary")
+    sum_col_1, sum_col_2, sum_col_3, sum_col_4 = st.columns(4)
+    sum_col_1.metric("Project", st.session_state.get("project_name", ""))
+    sum_col_2.metric("Components", str(len(components)))
+    sum_col_3.metric("Interfaces", str(len(interfaces)))
+    sum_col_4.metric("Model Status", model_status)
+
+    if component_errors:
+        st.warning("Please fix component validation issues before recalculation.")
+        for message in component_errors:
+            st.write(f"- {message}")
+    if interface_errors:
+        st.warning("Please fix interface validation issues before recalculation.")
+        for message in interface_errors:
+            st.write(f"- {message}")
+
+    st.header("Interface Consistency / Completeness")
+    if can_recalculate_from_interfaces:
+        st.success(consistency_status)
+    elif consistency_status.endswith("INCOMPLETE"):
+        st.warning(consistency_status)
+    else:
+        st.error(consistency_status)
+    for message in consistency_messages:
+        st.write(message)
+
+    with st.expander("Differences from loaded baseline (informational only)"):
+        st.caption("These differences do not block recalculation by themselves.")
+        for message in baseline_diff_messages:
+            st.write(message)
+
+    recalc_disabled = bool(
+        component_errors or interface_errors or not can_recalculate_from_interfaces
+    )
+    if st.button("Recalculate SRL", disabled=recalc_disabled):
+        try:
+            project = ProjectData(
+                name=st.session_state.get("project_name", "SRL Project"),
+                components=components,
+                interfaces=interfaces,
+                revision=st.session_state.get("project_revision", ""),
+                project_date=st.session_state.get("project_date", ""),
+                notes=st.session_state.get("project_notes", ""),
+                evidence=st.session_state.get("project_evidence", []),
+                visualization_metadata=st.session_state.get(
+                    "visualization_metadata", {"node_positions": {}}
+                ),
+            )
+            st.session_state.last_result = calculate_srl(project)
+            st.rerun()
+        except ValueError as exc:
+            st.error(f"Calculation failed due to invalid project data: {exc}")
+        except Exception as exc:
+            st.error(f"Calculation failed: {exc}")
+
+    export_col_1, _ = st.columns(2)
+    with export_col_1:
+        st.header("Save / Export Project JSON")
+        if component_errors:
+            st.caption("Fix component validation errors to enable export.")
+        else:
+            export_project = ProjectData(
+                name=st.session_state.get("project_name", "SRL Project"),
+                components=components,
+                interfaces=interfaces,
+                revision=st.session_state.get("project_revision", ""),
+                project_date=st.session_state.get("project_date", ""),
+                notes=st.session_state.get("project_notes", ""),
+                evidence=st.session_state.get("project_evidence", []),
+                visualization_metadata=st.session_state.get(
+                    "visualization_metadata", {"node_positions": {}}
+                ),
+            )
+            include_timestamp = st.checkbox(
+                "Add timestamp suffix to export filename",
+                value=False,
+                key="export_add_timestamp",
+            )
+            suggested_filename = build_default_export_filename(
+                project_name=export_project.name,
+                revision=export_project.revision,
+                project_date=export_project.project_date,
+                include_timestamp=include_timestamp,
+            )
+            if "export_filename" not in st.session_state:
+                st.session_state.export_filename = suggested_filename
+
+            filename_col_1, filename_col_2 = st.columns([3, 1])
+            with filename_col_1:
+                entered_filename = st.text_input(
+                    "Export filename",
+                    value=st.session_state.get("export_filename", suggested_filename),
+                    help="Windows-safe filename. .json extension is applied automatically.",
+                )
+            with filename_col_2:
+                if st.button("Use Suggested", key="use_suggested_export_filename"):
+                    st.session_state.export_filename = suggested_filename
+                    st.rerun()
+
+            st.session_state.export_filename = entered_filename
+            final_filename = sanitize_windows_filename(entered_filename or suggested_filename)
+            if final_filename != (entered_filename or ""):
+                st.caption(f"Using sanitized filename: `{final_filename}`")
+
+            st.download_button(
+                "Download Current Project JSON",
+                data=_project_json_text(
+                    export_project.name,
+                    export_project.revision,
+                    export_project.project_date,
+                    export_project.notes,
+                    export_project.components,
+                    export_project.interfaces,
+                    export_project.evidence,
+                    export_project.visualization_metadata,
+                ),
+                file_name=final_filename,
+                mime="application/json",
+            )
+
+    result = st.session_state.get("last_result")
+    st.header("Results Summary")
+    if result is None:
+        st.info("Click 'Recalculate SRL' to view results.")
+    else:
+        metric_col_1, metric_col_2 = st.columns(2)
+        metric_col_1.metric("Composite SRL", f"{result.composite_srl:.3f}")
+        metric_col_2.metric("Translated SRL Level", f"{result.srl_level}")
+
+    st.header("Component Results Table")
+    if result is None:
+        st.caption("No results yet.")
+    else:
+        table_rows = [
+            {
+                "Component ID": item.component_id,
+                "m_i": item.integrations_count,
+                "Raw SRL": round(item.raw_srl, 3),
+                "Component SRL": round(item.component_srl, 3),
+            }
+            for item in result.component_results
+        ]
+        st.table(table_rows)
+
+
 def main() -> None:
     st.set_page_config(page_title="SRL Calculator", layout="wide")
     st.title("SRL Calculator")
@@ -1473,8 +1629,6 @@ def main() -> None:
         st.success(st.session_state.action_notice)
         st.session_state.action_notice = None
 
-    summary_placeholder = st.empty()
-
     view_mode = st.radio(
         "View Mode",
         options=["Edit Mode", "Architecture Focus Mode", "Graph Full View"],
@@ -1523,6 +1677,7 @@ def main() -> None:
 
     use_split_view = False
     graph_render_container = None
+    left_post_container = None
 
     if focus_mode or graph_full_view_mode:
         with st.expander("Project Metadata (collapsed in focus mode)", expanded=False):
@@ -1576,8 +1731,11 @@ def main() -> None:
             st.markdown(
                 """
                 <style>
+                .srl-workspace-col {
+                    height: calc(100vh - 6.5rem);
+                }
                 .srl-editor-scroll {
-                    max-height: calc(100vh - 5.5rem);
+                    height: calc(100vh - 8rem);
                     overflow-y: auto;
                     padding-right: 0.35rem;
                     border-right: 1px solid rgba(148, 163, 184, 0.25);
@@ -1592,8 +1750,9 @@ def main() -> None:
                 """,
                 unsafe_allow_html=True,
             )
-            edit_col, graph_col = st.columns([0.85, 1.25], gap="large")
+            edit_col, graph_col = st.columns([0.8, 1.2], gap="large")
             with edit_col:
+                st.markdown('<div class="srl-workspace-col">', unsafe_allow_html=True)
                 st.markdown('<div class="srl-editor-scroll">', unsafe_allow_html=True)
                 st.caption(
                     "Editing flow: Project Metadata → Components (TRL) → Interfaces (IRL). "
@@ -1633,11 +1792,15 @@ def main() -> None:
                 interface_errors = _render_interfaces_editor(valid_component_ids)
                 with st.expander("Architecture tables/layout controls", expanded=False):
                     _render_architecture_supporting_sections(components, st.session_state.get("interfaces", []))
+                left_post_container = st.container()
+                st.markdown('</div>', unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
 
             with graph_col:
+                st.markdown('<div class="srl-workspace-col">', unsafe_allow_html=True)
                 st.markdown('<div class="srl-sticky-graph">', unsafe_allow_html=True)
                 graph_render_container = st.container()
+                st.markdown('</div>', unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
         else:
             st.caption("Stacked layout active for narrower screens.")
@@ -1737,150 +1900,31 @@ def main() -> None:
             canvas_only=False,
         )
 
-    with summary_placeholder.container():
-        st.subheader("Current Project Summary")
-        sum_col_1, sum_col_2, sum_col_3, sum_col_4 = st.columns(4)
-        sum_col_1.metric("Project", st.session_state.get("project_name", ""))
-        sum_col_2.metric("Components", str(len(components)))
-        sum_col_3.metric("Interfaces", str(len(interfaces)))
-        sum_col_4.metric("Model Status", model_status)
-
-    if component_errors:
-        st.warning("Please fix component validation issues before recalculation.")
-        for message in component_errors:
-            st.write(f"- {message}")
-    if interface_errors:
-        st.warning("Please fix interface validation issues before recalculation.")
-        for message in interface_errors:
-            st.write(f"- {message}")
-
-    st.header("Interface Consistency / Completeness")
-    if can_recalculate_from_interfaces:
-        st.success(consistency_status)
-    elif consistency_status.endswith("INCOMPLETE"):
-        st.warning(consistency_status)
-    else:
-        st.error(consistency_status)
-    for message in consistency_messages:
-        st.write(message)
-
-    with st.expander("Differences from loaded baseline (informational only)"):
-        st.caption("These differences do not block recalculation by themselves.")
-        for message in baseline_diff_messages:
-            st.write(message)
-
-    recalc_disabled = bool(
-        component_errors or interface_errors or not can_recalculate_from_interfaces
-    )
-    if st.button("Recalculate SRL", disabled=recalc_disabled):
-        try:
-            project = ProjectData(
-                name=st.session_state.get("project_name", "SRL Project"),
+    if use_split_view and left_post_container is not None and not focus_mode and not graph_full_view_mode:
+        with left_post_container:
+            _render_post_editor_sections(
                 components=components,
                 interfaces=interfaces,
-                revision=st.session_state.get("project_revision", ""),
-                project_date=st.session_state.get("project_date", ""),
-                notes=st.session_state.get("project_notes", ""),
-                evidence=st.session_state.get("project_evidence", []),
-                visualization_metadata=st.session_state.get(
-                    "visualization_metadata", {"node_positions": {}}
-                ),
+                component_errors=component_errors,
+                interface_errors=interface_errors,
+                consistency_status=consistency_status,
+                consistency_messages=consistency_messages,
+                baseline_diff_messages=baseline_diff_messages,
+                can_recalculate_from_interfaces=can_recalculate_from_interfaces,
+                model_status=model_status,
             )
-            st.session_state.last_result = calculate_srl(project)
-            st.rerun()
-        except ValueError as exc:
-            st.error(f"Calculation failed due to invalid project data: {exc}")
-        except Exception as exc:
-            st.error(f"Calculation failed: {exc}")
-
-    export_col_1, export_col_2 = st.columns(2)
-    with export_col_1:
-        st.header("Save / Export Project JSON")
-        if component_errors:
-            st.caption("Fix component validation errors to enable export.")
-        else:
-            export_project = ProjectData(
-                name=st.session_state.get("project_name", "SRL Project"),
-                components=components,
-                interfaces=interfaces,
-                revision=st.session_state.get("project_revision", ""),
-                project_date=st.session_state.get("project_date", ""),
-                notes=st.session_state.get("project_notes", ""),
-                evidence=st.session_state.get("project_evidence", []),
-                visualization_metadata=st.session_state.get(
-                    "visualization_metadata", {"node_positions": {}}
-                ),
-            )
-            include_timestamp = st.checkbox(
-                "Add timestamp suffix to export filename",
-                value=False,
-                key="export_add_timestamp",
-            )
-            suggested_filename = build_default_export_filename(
-                project_name=export_project.name,
-                revision=export_project.revision,
-                project_date=export_project.project_date,
-                include_timestamp=include_timestamp,
-            )
-            if "export_filename" not in st.session_state:
-                st.session_state.export_filename = suggested_filename
-
-            filename_col_1, filename_col_2 = st.columns([3, 1])
-            with filename_col_1:
-                entered_filename = st.text_input(
-                    "Export filename",
-                    value=st.session_state.get("export_filename", suggested_filename),
-                    help="Windows-safe filename. .json extension is applied automatically.",
-                )
-            with filename_col_2:
-                if st.button("Use Suggested", key="use_suggested_export_filename"):
-                    st.session_state.export_filename = suggested_filename
-                    st.rerun()
-
-            st.session_state.export_filename = entered_filename
-            final_filename = sanitize_windows_filename(entered_filename or suggested_filename)
-            if final_filename != (entered_filename or ""):
-                st.caption(f"Using sanitized filename: `{final_filename}`")
-
-            st.download_button(
-                "Download Current Project JSON",
-                data=_project_json_text(
-                    export_project.name,
-                    export_project.revision,
-                    export_project.project_date,
-                    export_project.notes,
-                    export_project.components,
-                    export_project.interfaces,
-                    export_project.evidence,
-                    export_project.visualization_metadata,
-                ),
-                file_name=final_filename,
-                mime="application/json",
-            )
-
-    result = st.session_state.get("last_result")
-    st.header("Results Summary")
-    if result is None:
-        st.info("Click 'Recalculate SRL' to view results.")
     else:
-        metric_col_1, metric_col_2 = st.columns(2)
-        metric_col_1.metric("Composite SRL", f"{result.composite_srl:.3f}")
-        metric_col_2.metric("Translated SRL Level", f"{result.srl_level}")
-
-    st.header("Component Results Table")
-    if result is None:
-        st.caption("No results yet.")
-    else:
-        table_rows = [
-            {
-                "Component ID": item.component_id,
-                "m_i": item.integrations_count,
-                "Raw SRL": round(item.raw_srl, 3),
-                "Component SRL": round(item.component_srl, 3),
-            }
-            for item in result.component_results
-        ]
-        st.table(table_rows)
+        _render_post_editor_sections(
+            components=components,
+            interfaces=interfaces,
+            component_errors=component_errors,
+            interface_errors=interface_errors,
+            consistency_status=consistency_status,
+            consistency_messages=consistency_messages,
+            baseline_diff_messages=baseline_diff_messages,
+            can_recalculate_from_interfaces=can_recalculate_from_interfaces,
+            model_status=model_status,
+        )
 
 
 if __name__ == "__main__":
