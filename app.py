@@ -1520,8 +1520,26 @@ def main() -> None:
         )
 
         if use_split_view:
+            st.markdown(
+                """
+                <style>
+                .srl-sticky-graph {
+                    position: sticky;
+                    top: 0.75rem;
+                    max-height: calc(100vh - 1.5rem);
+                    overflow: auto;
+                    padding-bottom: 0.5rem;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
             edit_col, graph_col = st.columns([1.35, 1.0], gap="large")
             with edit_col:
+                st.caption(
+                    "Editing flow: Project Metadata → Components (TRL) → Interfaces (IRL). "
+                    "Results and Save/Export remain below."
+                )
                 st.subheader("Project Metadata")
                 meta_col_1, meta_col_2, meta_col_3 = st.columns(3)
                 with meta_col_1:
@@ -1555,8 +1573,12 @@ def main() -> None:
                 valid_component_ids = [component.id for component in components]
                 interface_errors = _render_interfaces_editor(valid_component_ids)
 
-            graph_render_container = graph_col.container()
+            with graph_col:
+                st.markdown('<div class="srl-sticky-graph">', unsafe_allow_html=True)
+                graph_render_container = st.container()
+                st.markdown('</div>', unsafe_allow_html=True)
         else:
+            st.caption("Stacked layout active for narrower screens.")
             st.subheader("Project Metadata")
             meta_col_1, meta_col_2, meta_col_3 = st.columns(3)
             with meta_col_1:
