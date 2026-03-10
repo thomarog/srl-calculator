@@ -1468,6 +1468,9 @@ def main() -> None:
 
     st.info(st.session_state.get("source_label", "No project loaded."))
 
+    use_split_view = False
+    graph_render_container = None
+
     if focus_mode:
         with st.expander("Project Metadata (collapsed in focus mode)", expanded=False):
             st.session_state.project_name = st.text_input(
@@ -1506,38 +1509,86 @@ def main() -> None:
             interface_errors = _validate_interfaces(interfaces, set(valid_component_ids))
             st.caption("Components and Interfaces editors are hidden in focus mode.")
     else:
-        st.subheader("Project Metadata")
-        meta_col_1, meta_col_2, meta_col_3 = st.columns(3)
-        with meta_col_1:
-            st.session_state.project_name = st.text_input(
-                "Project name",
-                value=st.session_state.get("project_name", "SRL Project"),
-            )
-        with meta_col_2:
-            st.session_state.project_revision = st.text_input(
-                "Revision",
-                value=st.session_state.get("project_revision", "1"),
-            )
-        with meta_col_3:
-            st.session_state.project_date = st.text_input(
-                "Date",
-                value=st.session_state.get("project_date", date.today().isoformat()),
-            )
-        st.session_state.project_notes = st.text_area(
-            "Project notes",
-            value=st.session_state.get("project_notes", ""),
+        st.subheader("Edit Workspace")
+        use_split_view = st.toggle(
+            "Split View: keep live graph visible while editing",
+            value=True,
+            help=(
+                "Recommended on wider screens. Turn off on smaller screens to use "
+                "a stacked layout."
+            ),
         )
-        evidence_default_text = _evidence_items_to_text(st.session_state.get("project_evidence", []))
-        evidence_text = st.text_area(
-            "Evidence / notes entries (one line per entry)",
-            value=evidence_default_text,
-            help="Saved to project JSON under 'evidence'.",
-        )
-        st.session_state.project_evidence = _evidence_text_to_items(evidence_text)
 
-        components, component_errors = _render_components_editor()
-        valid_component_ids = [component.id for component in components]
-        interface_errors = _render_interfaces_editor(valid_component_ids)
+        if use_split_view:
+            edit_col, graph_col = st.columns([1.35, 1.0], gap="large")
+            with edit_col:
+                st.subheader("Project Metadata")
+                meta_col_1, meta_col_2, meta_col_3 = st.columns(3)
+                with meta_col_1:
+                    st.session_state.project_name = st.text_input(
+                        "Project name",
+                        value=st.session_state.get("project_name", "SRL Project"),
+                    )
+                with meta_col_2:
+                    st.session_state.project_revision = st.text_input(
+                        "Revision",
+                        value=st.session_state.get("project_revision", "1"),
+                    )
+                with meta_col_3:
+                    st.session_state.project_date = st.text_input(
+                        "Date",
+                        value=st.session_state.get("project_date", date.today().isoformat()),
+                    )
+                st.session_state.project_notes = st.text_area(
+                    "Project notes",
+                    value=st.session_state.get("project_notes", ""),
+                )
+                evidence_default_text = _evidence_items_to_text(st.session_state.get("project_evidence", []))
+                evidence_text = st.text_area(
+                    "Evidence / notes entries (one line per entry)",
+                    value=evidence_default_text,
+                    help="Saved to project JSON under 'evidence'.",
+                )
+                st.session_state.project_evidence = _evidence_text_to_items(evidence_text)
+
+                components, component_errors = _render_components_editor()
+                valid_component_ids = [component.id for component in components]
+                interface_errors = _render_interfaces_editor(valid_component_ids)
+
+            graph_render_container = graph_col.container()
+        else:
+            st.subheader("Project Metadata")
+            meta_col_1, meta_col_2, meta_col_3 = st.columns(3)
+            with meta_col_1:
+                st.session_state.project_name = st.text_input(
+                    "Project name",
+                    value=st.session_state.get("project_name", "SRL Project"),
+                )
+            with meta_col_2:
+                st.session_state.project_revision = st.text_input(
+                    "Revision",
+                    value=st.session_state.get("project_revision", "1"),
+                )
+            with meta_col_3:
+                st.session_state.project_date = st.text_input(
+                    "Date",
+                    value=st.session_state.get("project_date", date.today().isoformat()),
+                )
+            st.session_state.project_notes = st.text_area(
+                "Project notes",
+                value=st.session_state.get("project_notes", ""),
+            )
+            evidence_default_text = _evidence_items_to_text(st.session_state.get("project_evidence", []))
+            evidence_text = st.text_area(
+                "Evidence / notes entries (one line per entry)",
+                value=evidence_default_text,
+                help="Saved to project JSON under 'evidence'.",
+            )
+            st.session_state.project_evidence = _evidence_text_to_items(evidence_text)
+
+            components, component_errors = _render_components_editor()
+            valid_component_ids = [component.id for component in components]
+            interface_errors = _render_interfaces_editor(valid_component_ids)
 
     interfaces: list[Interface] = st.session_state.get("interfaces", [])
 
@@ -1563,12 +1614,30 @@ def main() -> None:
         consistency_status, component_errors, interface_errors
     )
 
-    _render_architecture_view(
-        components,
-        interfaces,
-        focus_mode=focus_mode,
-        model_status=model_status,
-    )
+    if focus_mode:
+        _render_architecture_view(
+            components,
+            interfaces,
+            focus_mode=True,
+            model_status=model_status,
+        )
+    elif use_split_view and graph_render_container is not None:
+        with graph_render_container:
+            st.subheader("Live Architecture")
+            st.caption("Graph stays visible and updates from current session state while editing.")
+            _render_architecture_view(
+                components,
+                interfaces,
+                focus_mode=False,
+                model_status=model_status,
+            )
+    else:
+        _render_architecture_view(
+            components,
+            interfaces,
+            focus_mode=False,
+            model_status=model_status,
+        )
 
     with summary_placeholder.container():
         st.subheader("Current Project Summary")

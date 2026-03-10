@@ -66,8 +66,9 @@ App behavior in this milestone:
   - auto-fit layout for connected and disconnected graphs (including orphans)
   - drag-and-drop node positioning directly in graph
   - **View Mode switch** for:
-    - Edit Mode (full editors/workflow)
+    - Edit Mode with default split view (editors on left + live graph on right)
     - Architecture Focus Mode (large graph-first view with minimal surrounding UI)
+  - split-view toggle supports stacked fallback for smaller screens
 - runs the existing SRL engine when you click `Recalculate SRL`
 - shows:
   - Composite SRL
