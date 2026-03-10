@@ -704,12 +704,18 @@ def _render_architecture_view(
     components: list[Component],
     interfaces: list[Interface],
     focus_mode: bool = False,
+    full_view_mode: bool = False,
     model_status: str | None = None,
 ) -> None:
     component_ids = {component.id for component in components}
     _apply_pending_drag_event(component_ids)
 
-    if focus_mode:
+    if full_view_mode:
+        st.header("Graph Full View")
+        st.caption(
+            "Near-full-screen graph mode (Streamlit-native alternative to browser full-screen pop-out)."
+        )
+    elif focus_mode:
         st.header("Architecture Focus Mode")
         st.caption(
             "Streamlit does not support a true pop-out window in this app, so focus mode "
@@ -719,7 +725,7 @@ def _render_architecture_view(
         st.header("Architecture View")
         st.caption("Read-only visualization of the current architecture in session state.")
 
-    if not focus_mode:
+    if not focus_mode and not full_view_mode:
         st.subheader("Interface Matrix (IRL)")
         _, matrix_rows = _build_irl_matrix_view(components, interfaces)
         st.dataframe(matrix_rows, use_container_width=True, hide_index=True)
@@ -737,8 +743,8 @@ def _render_architecture_view(
     orphan_ids = {component_id for component_id, linked in neighbors.items() if not linked}
 
     nodes: list[ANode] = []
-    node_font_size = 16 if focus_mode else 14
-    edge_font_size = 14 if focus_mode else 13
+    node_font_size = 18 if full_view_mode else (16 if focus_mode else 14)
+    edge_font_size = 16 if full_view_mode else (14 if focus_mode else 13)
     for component in components:
         x, y = graph_positions.get(component.id, (0.0, 0.0))
         if manual_layout_mode:
@@ -823,8 +829,8 @@ def _render_architecture_view(
         )
 
     graph_config = AConfig(
-        width=1400 if focus_mode else 1100,
-        height=760 if focus_mode else 520,
+        width=1850 if full_view_mode else (1400 if focus_mode else 1100),
+        height=980 if full_view_mode else (760 if focus_mode else 520),
         directed=False,
         physics=False,
         hierarchical=False,
@@ -880,7 +886,7 @@ def _render_architecture_view(
         for component_id, pos in sorted(saved_positions.items())
     ]
 
-    if focus_mode:
+    if focus_mode or full_view_mode:
         with st.expander("Saved manual positions", expanded=False):
             if saved_rows:
                 st.dataframe(saved_rows, use_container_width=True, hide_index=True)
@@ -1425,12 +1431,13 @@ def main() -> None:
 
     view_mode = st.radio(
         "View Mode",
-        options=["Edit Mode", "Architecture Focus Mode"],
+        options=["Edit Mode", "Architecture Focus Mode", "Graph Full View"],
         horizontal=True,
         index=0,
         help="Switch between full editing workflow and large architecture-focused view.",
     )
     focus_mode = view_mode == "Architecture Focus Mode"
+    graph_full_view_mode = view_mode == "Graph Full View"
 
     st.header("Project Workflow")
     action_col_1, action_col_2, action_col_3, action_col_4 = st.columns(4)
@@ -1471,7 +1478,7 @@ def main() -> None:
     use_split_view = False
     graph_render_container = None
 
-    if focus_mode:
+    if focus_mode or graph_full_view_mode:
         with st.expander("Project Metadata (collapsed in focus mode)", expanded=False):
             st.session_state.project_name = st.text_input(
                 "Project name",
@@ -1523,19 +1530,25 @@ def main() -> None:
             st.markdown(
                 """
                 <style>
+                .srl-editor-scroll {
+                    max-height: calc(100vh - 5.5rem);
+                    overflow-y: auto;
+                    padding-right: 0.35rem;
+                    border-right: 1px solid rgba(148, 163, 184, 0.25);
+                }
                 .srl-sticky-graph {
                     position: sticky;
-                    top: 0.75rem;
-                    max-height: calc(100vh - 1.5rem);
+                    top: 0.6rem;
+                    max-height: calc(100vh - 1.0rem);
                     overflow: auto;
-                    padding-bottom: 0.5rem;
                 }
                 </style>
                 """,
                 unsafe_allow_html=True,
             )
-            edit_col, graph_col = st.columns([1.35, 1.0], gap="large")
+            edit_col, graph_col = st.columns([0.85, 1.25], gap="large")
             with edit_col:
+                st.markdown('<div class="srl-editor-scroll">', unsafe_allow_html=True)
                 st.caption(
                     "Editing flow: Project Metadata → Components (TRL) → Interfaces (IRL). "
                     "Results and Save/Export remain below."
@@ -1572,6 +1585,7 @@ def main() -> None:
                 components, component_errors = _render_components_editor()
                 valid_component_ids = [component.id for component in components]
                 interface_errors = _render_interfaces_editor(valid_component_ids)
+                st.markdown('</div>', unsafe_allow_html=True)
 
             with graph_col:
                 st.markdown('<div class="srl-sticky-graph">', unsafe_allow_html=True)
@@ -1636,11 +1650,20 @@ def main() -> None:
         consistency_status, component_errors, interface_errors
     )
 
-    if focus_mode:
+    if graph_full_view_mode:
+        _render_architecture_view(
+            components,
+            interfaces,
+            focus_mode=False,
+            full_view_mode=True,
+            model_status=model_status,
+        )
+    elif focus_mode:
         _render_architecture_view(
             components,
             interfaces,
             focus_mode=True,
+            full_view_mode=False,
             model_status=model_status,
         )
     elif use_split_view and graph_render_container is not None:
@@ -1651,6 +1674,7 @@ def main() -> None:
                 components,
                 interfaces,
                 focus_mode=False,
+                full_view_mode=False,
                 model_status=model_status,
             )
     else:
@@ -1658,6 +1682,7 @@ def main() -> None:
             components,
             interfaces,
             focus_mode=False,
+            full_view_mode=False,
             model_status=model_status,
         )
 

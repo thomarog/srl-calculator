@@ -68,7 +68,8 @@ App behavior in this milestone:
   - **View Mode switch** for:
     - Edit Mode with default split view (editors on left + live graph on right)
     - Architecture Focus Mode (large graph-first view with minimal surrounding UI)
-  - split-view keeps a sticky right-side live graph panel while scrolling editors
+    - Graph Full View (near-full-screen graph mode)
+  - split-view uses a scrollable left editor pane and sticky right graph pane for continuous visibility
   - split-view toggle supports stacked fallback for smaller screens
 - runs the existing SRL engine when you click `Recalculate SRL`
 - shows:
