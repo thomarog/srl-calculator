@@ -74,6 +74,11 @@ App behavior in this milestone:
   - Translated SRL level
   - Component SRL table
 - allows download of the current project JSON
+- export filename workflow:
+  - editable filename field before download
+  - metadata-based suggested default (project/revision/date)
+  - Windows-safe filename sanitization
+  - optional timestamp suffix
 - includes project name editing
 - project metadata fields are editable and persisted:
   - project name

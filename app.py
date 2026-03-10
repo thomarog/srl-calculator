@@ -15,6 +15,7 @@ from custom_components.draggable_agraph import (
     agraph_draggable,
 )
 from core.engine import calculate_srl
+from core.export_naming import build_default_export_filename, sanitize_windows_filename
 from core.io import load_project_data, load_project_data_from_json_text
 from core.models import Component, Interface, ProjectData
 from core.state_sync import (
@@ -1643,6 +1644,37 @@ def main() -> None:
                     "visualization_metadata", {"node_positions": {}}
                 ),
             )
+            include_timestamp = st.checkbox(
+                "Add timestamp suffix to export filename",
+                value=False,
+                key="export_add_timestamp",
+            )
+            suggested_filename = build_default_export_filename(
+                project_name=export_project.name,
+                revision=export_project.revision,
+                project_date=export_project.project_date,
+                include_timestamp=include_timestamp,
+            )
+            if "export_filename" not in st.session_state:
+                st.session_state.export_filename = suggested_filename
+
+            filename_col_1, filename_col_2 = st.columns([3, 1])
+            with filename_col_1:
+                entered_filename = st.text_input(
+                    "Export filename",
+                    value=st.session_state.get("export_filename", suggested_filename),
+                    help="Windows-safe filename. .json extension is applied automatically.",
+                )
+            with filename_col_2:
+                if st.button("Use Suggested", key="use_suggested_export_filename"):
+                    st.session_state.export_filename = suggested_filename
+                    st.rerun()
+
+            st.session_state.export_filename = entered_filename
+            final_filename = sanitize_windows_filename(entered_filename or suggested_filename)
+            if final_filename != (entered_filename or ""):
+                st.caption(f"Using sanitized filename: `{final_filename}`")
+
             st.download_button(
                 "Download Current Project JSON",
                 data=_project_json_text(
@@ -1655,7 +1687,7 @@ def main() -> None:
                     export_project.evidence,
                     export_project.visualization_metadata,
                 ),
-                file_name="project_export.json",
+                file_name=final_filename,
                 mime="application/json",
             )
 
